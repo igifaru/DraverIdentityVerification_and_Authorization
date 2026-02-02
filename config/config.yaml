@@ -1,0 +1,34 @@
+verification:
+  similarity_threshold: 0.6  # Tunable threshold for face matching (0.0-1.0)
+  liveness_ear_threshold: 0.25  # Eye Aspect Ratio threshold for blink detection
+  liveness_blink_frames: 3  # Minimum consecutive frames for blink detection
+  max_processing_time_ms: 1500  # Maximum allowed processing time
+  confidence_threshold: 0.95  # Minimum confidence for face detection
+
+camera:
+  resolution_width: 640
+  resolution_height: 480
+  fps: 30
+  device_id: 0  # 0 for default camera, change if using external camera
+
+database:
+  path: "data/database/drivers.db"
+
+email:
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  sender_name: "Driver Verification System"
+  # Email credentials should be set in .env file
+  # SMTP_EMAIL and SMTP_PASSWORD
+
+logging:
+  log_path: "data/logs/verification_log.csv"
+  alert_image_path: "data/alerts/captured_images/"
+  max_log_entries: 10000  # Maximum entries before log rotation
+  save_authorized_images: false  # Save images of authorized drivers
+  save_unauthorized_images: true  # Save images of unauthorized attempts
+
+system:
+  debug_mode: false  # Enable debug logging (set to false to avoid camera conflicts in dashboard)
+  show_video_preview: true  # Show live video feed during verification
+  enrollment_image_count: 5  # Number of images to capture during enrollment

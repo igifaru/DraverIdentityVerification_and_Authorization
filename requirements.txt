@@ -1,0 +1,27 @@
+# Core Dependencies
+opencv-python==4.8.1.78
+numpy==1.24.3
+scipy==1.11.4
+
+# Deep Learning & Face Recognition
+deepface==0.0.79
+tensorflow==2.13.0
+mtcnn==0.1.1
+
+# Web Framework
+flask==3.0.0
+flask-cors==4.0.0
+
+# Utilities
+pyyaml==6.0.1
+python-dotenv==1.0.0
+pillow==10.1.0
+
+# Logging & Monitoring
+pandas==2.1.4
+matplotlib==3.8.2
+
+# Additional utilities
+
+imutils==0.5.4
+mediapipe==0.10.9

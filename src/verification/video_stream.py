@@ -5,6 +5,7 @@ Handles real-time video streaming for verification
 
 import cv2
 import numpy as np
+import sys
 from typing import Optional, Tuple
 from collections import deque
 from utils.config import config

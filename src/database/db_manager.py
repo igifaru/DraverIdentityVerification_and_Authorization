@@ -48,6 +48,7 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS drivers (
                 driver_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
+                id_number TEXT,
                 biometric_embedding BLOB NOT NULL,
                 enrollment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 email TEXT,
@@ -82,7 +83,7 @@ class DatabaseManager:
     
     # ==================== Driver Operations ====================
     
-    def enroll_driver(self, name: str, embedding: np.ndarray, email: str = None) -> int:
+    def enroll_driver(self, name: str, embedding: np.ndarray, email: str = None, id_number: str = None) -> int:
         """
         Enroll a new driver in the database
         
@@ -90,6 +91,7 @@ class DatabaseManager:
             name: Driver's name
             embedding: 128-dimensional FaceNet embedding
             email: Optional email address
+            id_number: Optional identification number
             
         Returns:
             driver_id of the newly enrolled driver
@@ -101,9 +103,9 @@ class DatabaseManager:
         cursor = conn.cursor()
         
         cursor.execute("""
-            INSERT INTO drivers (name, biometric_embedding, email)
-            VALUES (?, ?, ?)
-        """, (name, embedding_blob, email))
+            INSERT INTO drivers (name, biometric_embedding, email, id_number)
+            VALUES (?, ?, ?, ?)
+        """, (name, embedding_blob, email, id_number))
         
         driver_id = cursor.lastrowid
         conn.commit()
@@ -422,6 +424,38 @@ class DatabaseManager:
             'avg_authorized_similarity': avg_authorized_score,
             'authorization_rate': (authorized_count / total_verifications * 100) if total_verifications > 0 else 0
         }
+
+    def get_daily_statistics(self) -> dict:
+        """
+        Get verification statistics for the current day
+        
+        Returns:
+            Dictionary with daily statistics
+        """
+        today = datetime.now().strftime('%Y-%m-%d')
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # Daily total
+        cursor.execute("SELECT COUNT(*) as count FROM verification_logs WHERE date(timestamp) = ?", (today,))
+        daily_total = cursor.fetchone()['count']
+        
+        # Daily authorized
+        cursor.execute("SELECT COUNT(*) as count FROM verification_logs WHERE authorized = 1 AND date(timestamp) = ?", (today,))
+        daily_authorized = cursor.fetchone()['count']
+        
+        # Daily unauthorized
+        cursor.execute("SELECT COUNT(*) as count FROM verification_logs WHERE authorized = 0 AND date(timestamp) = ?", (today,))
+        daily_unauthorized = cursor.fetchone()['count']
+        
+        conn.close()
+        
+        return {
+            'date': today,
+            'total': daily_total,
+            'authorized': daily_authorized,
+            'unauthorized': daily_unauthorized
+        }
     
     # ==================== Helper Methods ====================
     
@@ -432,6 +466,7 @@ class DatabaseManager:
         return Driver(
             driver_id=row['driver_id'],
             name=row['name'],
+            id_number=row.get('id_number'),
             biometric_embedding=embedding,
             enrollment_date=datetime.fromisoformat(row['enrollment_date']),
             email=row['email'],

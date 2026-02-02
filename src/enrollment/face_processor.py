@@ -237,7 +237,8 @@ class FaceProcessor:
                 img_path=face_uint8,
                 model_name='Facenet',
                 enforce_detection=False,
-                detector_backend='skip'
+                detector_backend='skip',
+                silent=True
             )
             
             # Extract embedding vector

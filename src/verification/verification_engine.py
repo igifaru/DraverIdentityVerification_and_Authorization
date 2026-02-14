@@ -10,16 +10,18 @@ import threading
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 from deepface import DeepFace
 
 from verification.video_stream import VideoStream
 from verification.liveness_detector import LivenessDetector
 from verification.face_matcher import FaceMatcher
+from verification.verification_result_handler import VerificationResultHandler
 from enrollment.face_processor import FaceProcessor
 from database.db_manager import DatabaseManager
 from database.models import VerificationLog
 from utils.config import config
+from utils.constants import CAPTURED_IMAGES_DIR
 from alerting.email_service import EmailService
 
 
@@ -34,13 +36,29 @@ class VerificationEngine:
         
         self.video_stream = VideoStream()
         self.face_processor = FaceProcessor()
-        self.liveness_detector = LivenessDetector()
+        
+        # Liveness Detection Config
+        self.enable_liveness_check = config.get('verification.enable_liveness', True)
+        if self.enable_liveness_check:
+            self.liveness_detector = LivenessDetector()
+        else:
+            self.liveness_detector = None
+            print("WARNING: Liveness detection DISABLED by configuration")
+
         self.face_matcher = FaceMatcher()
         self.db = DatabaseManager()
+        self.result_handler = VerificationResultHandler()
         
         self.is_running = False
         self.last_verification_time = 0
-        self.verification_cooldown = 2.0  # Seconds between verifications
+        
+        # Cooldown Config
+        self.enable_cooldown = config.get('verification.enable_cooldown', True)
+        if self.enable_cooldown:
+            self.verification_cooldown = config.get('verification.cooldown_seconds', 2.0)
+        else:
+            self.verification_cooldown = 0.0
+            print("WARNING: Verification cooldown DISABLED by configuration")
         
         # Web streaming support
         self._frame_lock = threading.Lock()
@@ -51,20 +69,12 @@ class VerificationEngine:
         self.email_service = EmailService()
         self.alert_recipients = config.get('email.alert_recipients', [])
         
-        print("✓ Verification engine initialized\n")
+        print("[OK] Verification engine initialized\n")
     
 
     def save_verification_image(self, frame: np.ndarray, authorized: bool, driver_name: str = None) -> Optional[str]:
         """
         Save verification attempt image
-        
-        Args:
-            frame: Frame to save
-            authorized: Whether verification was authorized
-            driver_name: Driver name (if authorized)
-            
-        Returns:
-            Path to saved image or None
         """
         # Only save unauthorized images by default (privacy)
         if authorized and not config.get('logging.save_authorized_images', False):
@@ -96,16 +106,7 @@ class VerificationEngine:
             return None
     
     def verify_frame(self, frame: np.ndarray, check_liveness: bool = True) -> Tuple[bool, dict]:
-        """
-        Verify a single frame
-        
-        Args:
-            frame: Input frame
-            check_liveness: Whether to perform liveness detection
-            
-        Returns:
-            Tuple of (success, result_dict)
-        """
+        """Verify a single frame"""
         start_time = time.time()
         
         result = {
@@ -128,7 +129,8 @@ class VerificationEngine:
             return False, result
         
         # Check liveness if enabled
-        if check_liveness:
+        # Check liveness if enabled
+        if check_liveness and self.liveness_detector:
             is_live, liveness_status, liveness_confidence = self.liveness_detector.check_liveness(frame)
             result['liveness_passed'] = is_live
             
@@ -182,12 +184,7 @@ class VerificationEngine:
         return True, result
     
     def log_verification(self, result: dict):
-        """
-        Log verification attempt to database
-        
-        Args:
-            result: Verification result dictionary
-        """
+        """Log verification attempt to database"""
         log = VerificationLog(
             driver_id=result['driver_id'],
             driver_name=result['driver_name'],
@@ -200,26 +197,35 @@ class VerificationEngine:
         
         self.db.log_verification(log)
     
-    def run_continuous_verification(self, show_preview: bool = True, enable_liveness: bool = True):
-        """
-        Run continuous verification loop
-        
-        Args:
-            show_preview: Whether to show live video preview
-            enable_liveness: Whether to enable liveness detection
-        """
+    def start_camera(self):
+        """Start the video stream if not already running"""
+        if not self.video_stream.is_running:
+             if self.video_stream.start():
+                 print("Camera started successfully")
+                 return True
+             else:
+                 print("ERROR: Failed to start camera")
+                 return False
+        return True
+
+    def run_continuous_verification(self, show_preview: bool = True, enable_liveness: Optional[bool] = None):
+        """Run continuous verification loop"""
+        # Resolve configuration
+        if enable_liveness is None:
+            enable_liveness = self.enable_liveness_check
+
         print("\n" + "="*60)
         print("STARTING CONTINUOUS VERIFICATION")
         print("="*60)
         print(f"Liveness Detection: {'ENABLED' if enable_liveness else 'DISABLED'}")
+        print(f"Cooldown: {'ENABLED' if self.enable_cooldown else 'DISABLED'} ({self.verification_cooldown}s)")
         print(f"Video Preview: {'ENABLED' if show_preview else 'DISABLED'}")
         print(f"Similarity Threshold: {self.face_matcher.get_threshold()}")
         print("Press 'q' or ESC to quit")
         print("="*60 + "\n")
         
         # Start video stream
-        if not self.video_stream.start():
-            print("ERROR: Failed to start video stream")
+        if not self.start_camera():
             return
         
         self.is_running = True
@@ -233,7 +239,7 @@ class VerificationEngine:
                     frame = self.video_stream.read_frame()
                     
                     if frame is None:
-                        time.sleep(0.1)
+                        time.sleep(0.01 if not self.enable_cooldown else 0.1)
                         continue
                     
                     frame_count += 1
@@ -241,7 +247,10 @@ class VerificationEngine:
                     
                     # Check if enough time has passed since last verification
                     current_time = time.time()
-                    can_verify = (current_time - self.last_verification_time) >= self.verification_cooldown
+                    if self.enable_cooldown:
+                        can_verify = (current_time - self.last_verification_time) >= self.verification_cooldown
+                    else:
+                        can_verify = True
                     
                     if can_verify:
                         # Check brightness
@@ -276,8 +285,8 @@ class VerificationEngine:
                             if not result['authorized'] and not is_too_dark:
                                 self._trigger_alert(result)
                         
-                        # Draw result on frame
-                        display_frame = self._draw_verification_result(display_frame, result)
+                        # Draw result on frame using Handler
+                        display_frame = self.result_handler.draw_result(display_frame, result)
                     else:
                         # Show cooldown status
                         remaining = self.verification_cooldown - (current_time - self.last_verification_time)
@@ -307,27 +316,6 @@ class VerificationEngine:
             self.stop()
             print(f"\nVerification Session Summary: {verification_count} verifications performed")
     
-    def _draw_verification_result(self, frame: np.ndarray, result: dict) -> np.ndarray:
-        """Draw verification result on frame"""
-        annotated = frame.copy()
-        
-        if result['authorized']:
-            status_color = (0, 255, 0)
-            status_text = "AUTHORIZED"
-        elif "No face" in result.get('status_message', ''):
-            status_color = (128, 128, 128)
-            status_text = "SCANNING..."
-        else:
-            status_color = (0, 0, 255)
-            status_text = "UNAUTHORIZED"
-            
-        cv2.rectangle(annotated, (0, 0), (annotated.shape[1], 80), status_color, -1)
-        cv2.putText(annotated, status_text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
-        
-        if result.get('status_message'):
-            cv2.putText(annotated, result['status_message'], (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-        
-        return annotated
     
     def _trigger_alert(self, result: dict):
         """Trigger alert for unauthorized access"""
@@ -347,69 +335,54 @@ class VerificationEngine:
         self.video_stream.stop()
         cv2.destroyAllWindows()
         print("Verification engine stopped")
-
+    
     def get_driver_status(self) -> dict:
-        """
-        Get simplified status for the driver feedback screen
-        """
-        if not self.is_running:
-            return {
-                'state': 'ready',
-                'status_display': 'SYSTEM READY',
-                'instruction': 'Initializing camera...'
-            }
-            
-        result = getattr(self, 'latest_result', None)
-        
-        state = 'scanning'
-        status_display = 'SCANNING'
-        instruction = 'Please look at the camera'
-        
-        if result:
-            msg = result.get('status_message', '').upper()
-            if "LOW LIGHT" in msg:
-                state = 'warning'
-                status_display = 'LOW LIGHT'
-                instruction = 'Please improve lighting'
-            elif "ENROLL" in msg:
-                state = 'warning'
-                status_display = 'SETUP REQUIRED'
-                instruction = 'Contact authority'
-            elif result.get('authorized'):
-                state = 'authorized'
-                status_display = 'ACCESS GRANTED'
-                instruction = 'Driver verified successfully'
-            elif not result.get('liveness_passed') and result.get('similarity_score', 0) > 0:
-                state = 'warning'
-                status_display = 'LIVENESS FAILED'
-                instruction = 'Please blink naturally'
-            elif result.get('similarity_score', 0) > 0:
-                state = 'unauthorized'
-                status_display = 'ACCESS DENIED'
-                instruction = 'Unauthorized driver detected'
-                
-        return {
-            'state': state,
-            'status_display': status_display,
-            'instruction': instruction
-        }
+        """Get simplified status for the driver feedback screen"""
+        return self.result_handler.get_driver_status(
+            getattr(self, 'latest_result', None), 
+            self.is_running
+        )
 
-    def enroll_new_driver(self, name: str, driver_id_str: str, image: np.ndarray) -> Tuple[bool, str]:
-        """
-        Enroll a new driver from a provided image
-        """
-        preprocessed, status = self.face_processor.process_for_enrollment(image)
-        if preprocessed is None:
-            return False, f"Enrollment failed: {status}"
+    def enroll_new_driver(self, name: str, driver_id_str: str, images: list) -> Tuple[bool, str]:
+        """Enroll a new driver from a list of provided images (multi-sample)"""
+        if not images:
+            return False, "No images provided for enrollment"
             
-        embedding = self.face_processor.generate_embedding(preprocessed)
-        if embedding is None:
-            return False, "Enrollment failed: Could not generate biometric signature"
+        print(f"\n=== ENROLLMENT DEBUG: Processing {len(images)} images for {name} ===")
+        embeddings = []
+        errors = []
+        
+        for idx, img in enumerate(images):
+            print(f"Sample {idx+1}: Image type={type(img)}, shape={img.shape if hasattr(img, 'shape') else 'N/A'}")
             
+            preprocessed, status = self.face_processor.process_for_enrollment(img)
+            if preprocessed is not None:
+                print(f"Sample {idx+1}: Face detected and preprocessed successfully")
+                embedding = self.face_processor.generate_embedding(preprocessed)
+                if embedding is not None:
+                    embeddings.append(embedding)
+                    print(f"Sample {idx+1}: Embedding generated (shape={embedding.shape})")
+                else:
+                    errors.append(f"Sample {idx+1}: Could not generate biometric signature")
+                    print(f"Sample {idx+1}: Failed to generate embedding")
+            else:
+                errors.append(f"Sample {idx+1}: {status}")
+                print(f"Sample {idx+1}: Face detection failed - {status}")
+                
+        print(f"=== ENROLLMENT SUMMARY: {len(embeddings)}/{len(images)} samples successful ===\n")
+        
+        if len(embeddings) < 1:
+            error_msg = "; ".join(errors[:3])
+            return False, f"Enrollment failed: {error_msg}"
+            
+        # Averaging Logic: Create a robust biometric signature from all valid samples
+        # This reduces noise and improves matching consistency
+        mean_embedding = np.mean(embeddings, axis=0)
+        
         try:
-            self.db.enroll_driver(name, embedding, id_number=driver_id_str)
-            self.face_matcher.load_enrolled_drivers()
-            return True, f"Successfully enrolled {name}"
+            self.db.enroll_driver(name, mean_embedding, id_number=driver_id_str)
+            # FaceMatcher reads from DB directly, no need to reload
+            return True, f"Successfully enrolled {name} with {len(embeddings)}/5 biometric samples"
         except Exception as e:
             return False, f"Database error: {str(e)}"
 

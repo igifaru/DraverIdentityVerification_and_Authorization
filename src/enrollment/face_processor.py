@@ -39,13 +39,18 @@ class FaceProcessor:
         # Detect faces
         detections = self.detector.detect_faces(rgb_image)
         
+        print(f"  MTCNN: Found {len(detections)} faces, threshold={min_confidence}")
+        
         if not detections:
             return None
         
         # Get detection with highest confidence
         best_detection = max(detections, key=lambda x: x['confidence'])
         
+        print(f"  MTCNN: Best confidence={best_detection['confidence']:.3f}")
+        
         if best_detection['confidence'] < min_confidence:
+            print(f"  MTCNN: Rejected (below threshold)")
             return None
         
         return best_detection
@@ -100,9 +105,9 @@ class FaceProcessor:
         dy = right_eye[1] - left_eye[1]
         angle = np.degrees(np.arctan2(dy, dx))
         
-        # Get center point between eyes
-        eye_center = ((left_eye[0] + right_eye[0]) // 2, 
-                      (left_eye[1] + right_eye[1]) // 2)
+        # Get center point between eyes (ensure integers for cv2)
+        eye_center = (int((left_eye[0] + right_eye[0]) / 2), 
+                      int((left_eye[1] + right_eye[1]) / 2))
         
         # Rotate image
         rotation_matrix = cv2.getRotationMatrix2D(eye_center, angle, 1.0)
@@ -186,8 +191,8 @@ class FaceProcessor:
         Returns:
             Tuple of (preprocessed_face, status_message)
         """
-        # Detect face
-        detection = self.detect_face(image)
+        # Detect face with lower threshold for enrollment (more permissive)
+        detection = self.detect_face(image, min_confidence=0.85)
         
         if detection is None:
             return None, "No face detected"
@@ -224,6 +229,8 @@ class FaceProcessor:
         try:
             from deepface import DeepFace
             
+            print(f"  Generating embedding for face: shape={face_image.shape}, dtype={face_image.dtype}, range=[{face_image.min():.2f}, {face_image.max():.2f}]")
+            
             # DeepFace expects image in [0, 255] range for input
             # Convert from normalized [-1, 1] back to [0, 255] if needed
             # Or if input is already uint8, just use it
@@ -237,8 +244,7 @@ class FaceProcessor:
                 img_path=face_uint8,
                 model_name='Facenet',
                 enforce_detection=False,
-                detector_backend='skip',
-                silent=True
+                detector_backend='skip'
             )
             
             # Extract embedding vector
@@ -247,10 +253,13 @@ class FaceProcessor:
             else:
                 embedding = np.array(embedding_obj['embedding'])
             
+            print(f"  Embedding generated successfully: shape={embedding.shape}")
             return embedding
             
         except Exception as e:
+            import traceback
             print(f"ERROR: Failed to generate embedding: {e}")
+            print(f"Traceback: {traceback.format_exc()}")
             return None
 
     def draw_detection(self, image: np.ndarray, detection: dict) -> np.ndarray:

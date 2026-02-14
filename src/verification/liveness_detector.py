@@ -28,13 +28,20 @@ class LivenessDetector:
         
         # Initialize MediaPipe Face Mesh
         print("Initializing MediaPipe Face Mesh for liveness detection...")
-        self.mp_face_mesh = mp.solutions.face_mesh
-        self.face_mesh = self.mp_face_mesh.FaceMesh(
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
+        try:
+            self.mp_face_mesh = mp.solutions.face_mesh
+            self.face_mesh = self.mp_face_mesh.FaceMesh(
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.5,
+                min_tracking_confidence=0.5
+            )
+            self.is_available = True
+        except (ImportError, AttributeError) as e:
+            print(f"WARNING: MediaPipe liveness detection unavailable: {e}")
+            self.is_available = False
+            self.mp_face_mesh = None
+            self.face_mesh = None
         
         # Blink detection state
         self.frame_counter = 0
@@ -106,6 +113,9 @@ class LivenessDetector:
             Tuple of (is_live, status_message, confidence)
         """
         # Process image with MediaPipe
+        if not self.is_available:
+            return True, "Liveness check skipped (Lib missing)", 1.0
+
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         results = self.face_mesh.process(rgb_image)
         

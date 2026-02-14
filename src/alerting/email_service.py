@@ -12,7 +12,6 @@ from datetime import datetime
 from typing import List, Optional
 from utils.config import config
 
-
 class EmailService:
     """Manages email alerts for security events"""
     
@@ -24,12 +23,14 @@ class EmailService:
         self.sender_password = config.smtp_password
         self.sender_name = config.get('email.sender_name', 'Driver Verification System')
         
+        self.template_path = Path(__file__).parent / "templates" / "email_alert.html"
+        
         self.is_configured = self._check_configuration()
         
         if self.is_configured:
-            print("✓ Email service configured")
+            print("[OK] Email service configured")
         else:
-            print("⚠️  Email service not configured (alerts will not be sent)")
+            print("WARNING: Email service not configured (alerts will not be sent)")
     
     def _check_configuration(self) -> bool:
         """Check if email is properly configured"""
@@ -80,7 +81,7 @@ class EmailService:
             msg['To'] = ', '.join(recipients)
             msg['Subject'] = f"🚨 UNAUTHORIZED ACCESS ATTEMPT - {timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
             
-            # Create HTML body
+            # Prepare HTML content
             html_body = self._create_alert_html(
                 timestamp=timestamp,
                 similarity_score=similarity_score,
@@ -116,143 +117,49 @@ class EmailService:
                           similarity_score: float,
                           best_match_name: str = None,
                           has_image: bool = False) -> str:
-        """Create HTML email body for alert"""
+        """Create HTML email body from template"""
         
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                }}
-                .container {{
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }}
-                .header {{
-                    background-color: #dc3545;
-                    color: white;
-                    padding: 20px;
-                    text-align: center;
-                    border-radius: 5px 5px 0 0;
-                }}
-                .content {{
-                    background-color: #f8f9fa;
-                    padding: 20px;
-                    border: 1px solid #dee2e6;
-                }}
-                .detail-row {{
-                    margin: 10px 0;
-                    padding: 10px;
-                    background-color: white;
-                    border-left: 4px solid #dc3545;
-                }}
-                .detail-label {{
-                    font-weight: bold;
-                    color: #495057;
-                }}
-                .detail-value {{
-                    color: #212529;
-                }}
-                .image-container {{
-                    margin: 20px 0;
-                    text-align: center;
-                }}
-                .image-container img {{
-                    max-width: 100%;
-                    border: 2px solid #dc3545;
-                    border-radius: 5px;
-                }}
-                .footer {{
-                    margin-top: 20px;
-                    padding: 15px;
-                    background-color: #e9ecef;
-                    text-align: center;
-                    font-size: 12px;
-                    color: #6c757d;
-                    border-radius: 0 0 5px 5px;
-                }}
-                .warning-icon {{
-                    font-size: 48px;
-                    margin-bottom: 10px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <div class="warning-icon">⚠️</div>
-                    <h1>UNAUTHORIZED ACCESS ATTEMPT</h1>
-                    <p>Driver Identity Verification System</p>
-                </div>
-                
-                <div class="content">
-                    <h2>Alert Details</h2>
-                    
-                    <div class="detail-row">
-                        <span class="detail-label">Timestamp:</span>
-                        <span class="detail-value">{timestamp.strftime('%Y-%m-%d %H:%M:%S')}</span>
-                    </div>
-                    
-                    <div class="detail-row">
-                        <span class="detail-label">Status:</span>
-                        <span class="detail-value" style="color: #dc3545; font-weight: bold;">UNAUTHORIZED</span>
-                    </div>
-                    
-                    <div class="detail-row">
-                        <span class="detail-label">Similarity Score:</span>
-                        <span class="detail-value">{similarity_score:.4f}</span>
-                    </div>
-                    
-                    {f'''
-                    <div class="detail-row">
-                        <span class="detail-label">Closest Match:</span>
-                        <span class="detail-value">{best_match_name}</span>
-                    </div>
-                    ''' if best_match_name else ''}
-                    
-                    <div class="detail-row">
-                        <span class="detail-label">Verification Threshold:</span>
-                        <span class="detail-value">{config.verification_threshold:.4f}</span>
-                    </div>
-                    
-                    {'''
-                    <div class="image-container">
-                        <h3>Captured Image</h3>
-                        <img src="cid:captured_image" alt="Captured facial image">
-                    </div>
-                    ''' if has_image else ''}
-                    
-                    <div style="margin-top: 20px; padding: 15px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
-                        <strong>⚠️ Action Required:</strong>
-                        <p>An unauthorized individual attempted to access the system. Please review the captured image and take appropriate action.</p>
-                    </div>
-                </div>
-                
-                <div class="footer">
-                    <p>This is an automated alert from the Driver Identity Verification System.</p>
-                    <p>Please do not reply to this email.</p>
-                </div>
+        try:
+            with open(self.template_path, 'r', encoding='utf-8') as f:
+                template = f.read()
+        except Exception as e:
+            print(f"ERROR: Could not load email template: {e}")
+            return "<h1>CRITICAL ALERTS ERROR: Template not found</h1>"
+
+        # Prepare formatting variables
+        closest_match_section = ""
+        if best_match_name:
+            closest_match_section = f"""
+            <div class="detail-row">
+                <span class="detail-label">Closest Match:</span>
+                <span class="detail-value">{best_match_name}</span>
             </div>
-        </body>
-        </html>
-        """
-        
-        return html
-    
+            """
+            
+        image_section = ""
+        if has_image:
+            image_section = """
+            <div class="image-container">
+                <h3>Captured Image</h3>
+                <img src="cid:captured_image" alt="Captured facial image">
+            </div>
+            """
+
+        # Perform simple string replacement (simulating Jinja2 for minimal dependencies)
+        return template.format(
+            timestamp=timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            similarity_score=f"{similarity_score:.4f}",
+            system_id=config.system_id,
+            vehicle_plate=config.vehicle_plate,
+            owner_name=config.owner_name,
+            verification_threshold=f"{config.verification_threshold:.4f}",
+            closest_match_section=closest_match_section,
+            image_section=image_section
+        )
+
     def send_test_email(self, recipient: str) -> bool:
         """
         Send a test email to verify configuration
-        
-        Args:
-            recipient: Test recipient email address
-            
-        Returns:
-            True if successful, False otherwise
         """
         if not self.is_configured:
             print("ERROR: Email not configured")
@@ -287,10 +194,6 @@ if __name__ == "__main__":
         print("\nEmail service is configured")
         print(f"SMTP Server: {service.smtp_server}:{service.smtp_port}")
         print(f"Sender: {service.sender_email}")
-        
-        # Uncomment to send test email
-        # test_recipient = input("Enter test recipient email: ")
-        # service.send_test_email(test_recipient)
     else:
         print("\nEmail service is NOT configured")
         print("Please update config/.env with your SMTP credentials")

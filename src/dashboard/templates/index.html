@@ -4,20 +4,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control Room - Driver Identity Verification</title>
+    <title>Draver Control Room - Advanced Identity Verification</title>
     <link
-        href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap"
         rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --bg-main: #f4f6f9;
-            --bg-sidebar: #2c3e50;
-            --accent-blue: #3498db;
-            --accent-green: #2ecc71;
+            --primary: #3498db;
+            --secondary: #2ecc71;
             --accent-red: #e74c3c;
-            --text-dark: #2d3436;
-            --text-light: #ecf0f1;
-            --border-color: #dcdde1;
+            --accent-gold: #f1c40f;
+            --bg-deep: #0f1020;
+            --bg-sidebar: #15162b;
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-strong: rgba(255, 255, 255, 0.07);
+            --border: rgba(255, 255, 255, 0.1);
+            --text-main: #e0e0e0;
+            --text-muted: rgba(255, 255, 255, 0.5);
         }
 
         * {
@@ -28,280 +32,408 @@
 
         body {
             font-family: 'Roboto', sans-serif;
-            background-color: var(--bg-main);
-            color: var(--text-dark);
+            background-color: var(--bg-deep);
+            color: var(--text-main);
             display: flex;
             height: 100vh;
             overflow: hidden;
         }
 
-        /* Sidebar */
+        /* Sidebar Design */
         .sidebar {
-            width: 260px;
+            width: 280px;
             background-color: var(--bg-sidebar);
-            color: var(--text-light);
+            border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
             z-index: 100;
         }
 
         .sidebar-header {
-            padding: 25px;
-            text-align: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px 30px;
+            text-align: left;
         }
 
-        .sidebar-header h2 {
-            font-size: 1.2rem;
-            letter-spacing: 1px;
-            color: var(--accent-blue);
-        }
-
-        .sidebar-menu {
-            flex-grow: 1;
-            padding: 20px 0;
-        }
-
-        .menu-item {
-            padding: 15px 25px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .menu-item:hover,
-        .menu-item.active {
-            background-color: rgba(255, 255, 255, 0.1);
-            border-left: 4px solid var(--accent-blue);
-        }
-
-        .sidebar-footer {
-            padding: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 0.8rem;
-            opacity: 0.7;
-        }
-
-        /* Main Content */
-        .main-content {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            background-color: var(--bg-main);
-            overflow-y: auto;
-        }
-
-        /* Top Header */
-        .top-nav {
-            height: 70px;
-            background-color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 40px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .status-pill {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.9rem;
-            font-weight: 500;
-        }
-
-        .dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background-color: var(--accent-green);
-            box-shadow: 0 0 5px var(--accent-green);
-        }
-
-        /* Alert Banner */
-        #alertBanner {
-            display: none;
-            background-color: var(--accent-red);
-            color: #fff;
-            padding: 15px 40px;
-            font-weight: bold;
-            text-align: center;
-            animation: slideDown 0.3s ease-out;
-            z-index: 99;
-        }
-
-        @keyframes slideDown {
-            from {
-                transform: translateY(-100%);
-            }
-
-            to {
-                transform: translateY(0);
-            }
-        }
-
-        /* View Switching */
-        .content-view {
-            display: none;
-            padding: 30px 40px;
-        }
-
-        .content-view.active {
-            display: block;
-        }
-
-        /* Panel Styling */
-        .panel {
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            border: 1px solid var(--border-color);
-            padding: 25px;
-            margin-bottom: 30px;
-        }
-
-        .panel-heading {
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #f8f9fa;
-            padding-bottom: 10px;
-        }
-
-        .panel-heading h3 {
-            font-size: 1.1rem;
+        .brand {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
             font-weight: 700;
-            color: var(--bg-sidebar);
+            letter-spacing: 4px;
+            color: var(--primary);
             text-transform: uppercase;
         }
 
-        /* Monitoring View Specifics */
-        .dashboard-grid {
+        .brand span {
+            color: #fff;
+        }
+
+        .menu-section {
+            flex-grow: 1;
+            padding: 0 15px;
+        }
+
+        .menu-section-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+            padding-left: 15px;
+        }
+
+        .menu-item {
+            padding: 14px 20px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .menu-item i {
+            font-size: 1.1rem;
+            width: 24px;
+            text-align: center;
+        }
+
+        .menu-item:hover {
+            color: #fff;
+            background: var(--glass);
+        }
+
+        .menu-item.active {
+            background: linear-gradient(90deg, rgba(52, 152, 219, 0.15), transparent);
+            color: var(--primary);
+            border-left: 3px solid var(--primary);
+        }
+
+        .sidebar-footer {
+            padding: 30px;
+            border-top: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .sys-info-pill {
+            background: var(--glass-strong);
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+        }
+
+        /* Main Content Layout */
+        .main-stage {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .top-bar {
+            height: 80px;
+            padding: 0 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+            background: rgba(15, 16, 32, 0.8);
+            position: sticky;
+            top: 0;
+            z-index: 90;
+        }
+
+        .breadcrumb {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            color: #fff;
+        }
+
+        .time-display {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            color: var(--primary);
+            background: var(--glass);
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .btn-logout {
+            color: var(--accent-red);
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 10px 18px;
+            border: 1px solid rgba(231, 76, 60, 0.2);
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .btn-logout:hover {
+            background: rgba(231, 76, 60, 0.1);
+            border-color: var(--accent-red);
+        }
+
+        /* UI Components */
+        .content-container {
+            padding: 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .dashboard-header {
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .dashboard-header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        .dashboard-header p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .metrics-grid {
             display: grid;
-            grid-template-columns: 3fr 2fr;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .metric-card {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 25px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .metric-icon {
+            position: absolute;
+            right: -10px;
+            bottom: -10px;
+            font-size: 4rem;
+            opacity: 0.05;
+            color: #fff;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+        }
+
+        .metric-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-top: 10px;
+        }
+
+        .metric-change {
+            font-size: 0.75rem;
+            margin-top: 8px;
+            font-weight: 500;
+        }
+
+        .up {
+            color: var(--secondary);
+        }
+
+        .down {
+            color: var(--accent-red);
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
             gap: 30px;
         }
 
-        .video-box {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 4/3;
-            background: #000;
-            border-radius: 4px;
-            overflow: hidden;
+        /* Glass Panel */
+        .glass-panel {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
         }
 
-        .video-box img {
+        .panel-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .panel-title h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .video-container {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        .video-container img {
             width: 100%;
             height: 100%;
             object-fit: contain;
         }
 
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
+        .video-overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
         }
 
-        .metric-card {
-            padding: 20px;
+        /* Status Badge */
+        .badge {
+            padding: 6px 12px;
             border-radius: 6px;
-            background: #f8f9fa;
-            border-left: 4px solid var(--accent-blue);
-        }
-
-        .metric-card.auth {
-            border-left-color: var(--accent-green);
-        }
-
-        .metric-card.unauth {
-            border-left-color: var(--accent-red);
-        }
-
-        .metric-label {
-            font-size: 0.8rem;
-            color: #636e72;
-            text-transform: uppercase;
-        }
-
-        .metric-value {
-            font-size: 1.8rem;
+            font-size: 0.7rem;
             font-weight: 700;
-            margin-top: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        /* Tables */
-        table {
+        .badge-success {
+            background: rgba(46, 204, 113, 0.2);
+            color: var(--secondary);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .badge-danger {
+            background: rgba(231, 76, 60, 0.2);
+            color: var(--accent-red);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .badge-blue {
+            background: rgba(52, 152, 219, 0.2);
+            color: var(--primary);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+        }
+
+        /* Tables & Lists */
+        .modern-table {
             width: 100%;
             border-collapse: collapse;
         }
 
-        th {
-            background-color: #f8f9fa;
+        .modern-table th {
             text-align: left;
-            padding: 15px 20px;
-            font-size: 0.85rem;
-            color: #636e72;
-            border-bottom: 1px solid var(--border-color);
+            padding: 15px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modern-table td {
+            padding: 18px 15px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+        }
+
+        .modern-table tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .avatar-small {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--glass-strong);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+        }
+
+        /* Buttons */
+        .btn-glow {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid transparent;
             text-transform: uppercase;
         }
 
-        td {
-            padding: 15px 20px;
-            border-bottom: 1px solid #f1f2f6;
-            font-size: 0.95rem;
+        .btn-start {
+            background: var(--secondary);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(46, 204, 113, 0.3);
         }
 
-        .status-text {
-            font-weight: bold;
+        .btn-stop {
+            background: var(--accent-red);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
         }
 
-        .text-authorized {
-            color: var(--accent-green);
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
         }
 
-        .text-unauthorized {
-            color: var(--accent-red);
-        }
-
-        /* Enrollment Features */
-        .enroll-form-grid {
+        /* Enrollment */
+        .enroll-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 40px;
         }
 
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-            font-size: 0.9rem;
-            color: var(--bg-sidebar);
-        }
-
-        .form-control {
+        .capture-frame {
             width: 100%;
-            padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-size: 1rem;
-        }
-
-        .capture-area {
-            width: 100%;
-            max-width: 400px;
             aspect-ratio: 4/3;
-            background: #f1f2f6;
-            border: 2px dashed var(--border-color);
-            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px dashed var(--border);
+            border-radius: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -309,437 +441,558 @@
             position: relative;
         }
 
-        .capture-preview {
+        .input-dark {
             width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: none;
-        }
-
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 4px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: opacity 0.2s;
-            text-transform: uppercase;
-            font-size: 0.85rem;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-primary {
-            background-color: var(--accent-blue);
-            color: #fff;
-        }
-
-        .btn-success {
-            background-color: var(--accent-green);
-            color: #fff;
-        }
-
-        .btn-outline {
-            background-color: transparent;
-            border: 1px solid var(--accent-blue);
-            color: var(--accent-blue);
-        }
-
-        .method-selector {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .method-btn {
-            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 12px;
             padding: 15px;
-            border: 1px solid var(--border-color);
-            background: #fff;
-            text-align: center;
-            cursor: pointer;
-            border-radius: 6px;
-            font-weight: bold;
-            color: var(--bg-sidebar);
+            color: #fff;
+            margin-bottom: 20px;
+            font-family: inherit;
         }
 
-        .method-btn.active {
-            border-color: var(--accent-blue);
-            background-color: rgba(52, 152, 219, 0.1);
-            color: var(--accent-blue);
+        /* Audit List */
+        .audit-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        /* Utility */
-        .evidence-panel {
-            margin-top: 20px;
+        .audit-item {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 15px;
+            border-radius: 12px;
+            border-left: 3px solid var(--primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .audit-action {
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: #fff;
+        }
+
+        .audit-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Animation */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .view {
+            animation: fadeIn 0.4s ease-out;
             display: none;
         }
 
-        .evidence-img {
-            width: 100%;
-            border: 2px solid var(--accent-red);
-            border-radius: 4px;
-            margin-top: 10px;
-        }
-
-        .badge-new {
-            background: var(--accent-red);
-            color: #fff;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            margin-left: 10px;
-        }
-
-        .btn-logout {
-            color: var(--accent-red);
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 0.9rem;
+        .view.active {
+            display: block;
         }
     </style>
 </head>
 
 <body>
-    <div class="sidebar">
+    <!-- Sidebar -->
+    <aside class="sidebar">
         <div class="sidebar-header">
-            <h2>VERIFY-SYSTEM</h2>
+            <div class="brand">DRA<span>VER</span></div>
         </div>
-        <div class="sidebar-menu">
-            <div class="menu-item active" onclick="switchView('monitoring')">
-                <span>🔴 LIVE MONITORING</span>
+
+        <nav class="menu-section">
+            <div class="menu-section-label">Main Navigation</div>
+            <div class="menu-item active" onclick="switchView('dashboard')">
+                <i class="fas fa-chart-line"></i>
+                <span>Operations</span>
             </div>
             <div class="menu-item" onclick="switchView('enrollment')">
-                <span>👤 DRIVER REGISTRATION</span>
+                <i class="fas fa-user-plus"></i>
+                <span>Enrollment</span>
             </div>
+            <div class="menu-item" onclick="switchView('audit')">
+                <i class="fas fa-shield-alt"></i>
+                <span>Audit Logs</span>
+            </div>
+
+            <div class="menu-section-label" style="margin-top: 30px;">Configuration</div>
             <div class="menu-item">
-                <span>📋 SYSTEM LOGS</span>
+                <i class="fas fa-cog"></i>
+                <span>Parameters</span>
             </div>
-            <div class="menu-item">
-                <span>⚙️ SYSTEM CONFIG</span>
-            </div>
-        </div>
+        </nav>
+
         <div class="sidebar-footer">
-            Admin: Root Authority<br>
-            Version: 2.2.0-Academic
-        </div>
-    </div>
-
-    <div class="main-content">
-        <div id="alertBanner">
-            🚨 SECURITY BREACH: UNAUTHORIZED DRIVER DETECTED! ALERT EMAILS DISPATCHED.
-        </div>
-
-        <div class="top-nav">
-            <div class="status-pill">
-                <div class="dot"></div>
-                <span>SYSTEM STATUS: OPERATIONAL</span>
-            </div>
-            <div id="navTime" style="font-family: 'JetBrains Mono', monospace; font-weight: bold;">00:00:00</div>
-            <a href="/logout" class="btn-logout">LOGOUT</a>
-        </div>
-
-        <!-- Monitoring View -->
-        <div id="viewMonitoring" class="content-view active">
-            <div class="dashboard-grid">
-                <div class="panel">
-                    <div class="panel-heading">
-                        <h3>Feed ID: CAM-01 (Entry Point)</h3>
-                        <div class="status-pill" style="font-size: 0.7rem;">
-                            <span style="color: grey;">MJPEG STREAM ACTIVE</span>
-                        </div>
-                    </div>
-                    <div class="video-box">
-                        <img src="{{ url_for('video_feed') }}" alt="Security Feed">
-                    </div>
-                </div>
-
-                <div class="panel">
-                    <div class="panel-heading">
-                        <h3>Daily Summary</h3>
-                        <span id="navDate" style="font-size: 0.8rem; color: grey;">2024-02-02</span>
-                    </div>
-                    <div class="metrics-grid">
-                        <div class="metric-card">
-                            <div class="metric-label">Total Attempts</div>
-                            <div class="metric-value" id="valDailyTotal">0</div>
-                        </div>
-                        <div class="metric-card auth">
-                            <div class="metric-label">Authorized</div>
-                            <div class="metric-value" id="valDailyAuth">0</div>
-                        </div>
-                        <div class="metric-card unauth">
-                            <div class="metric-label">Unauthorized</div>
-                            <div class="metric-value" id="valDailyUnauth">0</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Latency Avg</div>
-                            <div class="metric-value" id="valLatency">0ms</div>
-                        </div>
-                    </div>
-
-                    <div class="evidence-panel" id="evidencePanel">
-                        <div class="panel-heading"
-                            style="margin-top: 20px; border-bottom: 2px solid var(--accent-red);">
-                            <h3 style="color: var(--accent-red);">Latest Threat</h3>
-                        </div>
-                        <img src="" class="evidence-img" id="evidenceImg">
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel">
-                <div class="panel-heading">
-                    <h3>Recent Verification Logs</h3>
-                </div>
-                <table id="logsTable">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Driver Identification</th>
-                            <th>Similarity</th>
-                            <th>Decision</th>
-                            <th>Latency</th>
-                        </tr>
-                    </thead>
-                    <tbody id="logsBody"></tbody>
-                </table>
+            <div class="sys-info-pill">
+                <div style="color: var(--primary); font-family: 'Orbitron'; margin-bottom: 5px; font-size: 0.65rem;">
+                    AUTHORIZED NODE</div>
+                <div style="word-break: break-all; opacity: 0.8;">{{ system_id }}</div>
             </div>
         </div>
+    </aside>
 
-        <!-- Enrollment View -->
-        <div id="viewEnrollment" class="content-view">
-            <div class="panel">
-                <div class="panel-heading">
-                    <h3>Register New Authorized Driver</h3>
+    <!-- Main Stage -->
+    <main class="main-stage">
+        <header class="top-bar">
+            <div class="breadcrumb" id="viewTitle">OPERATIONS CENTER</div>
+
+            <div class="user-actions">
+                <div class="time-display" id="clock">00:00:00</div>
+                <div class="status-badge">
+                    <span class="badge badge-success"><i class="fas fa-circle"
+                            style="font-size: 0.5rem; margin-right: 5px;"></i> System Optimal</span>
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="btn-logout">Sign Out</a>
+            </div>
+        </header>
+
+        <div class="content-container">
+
+            <!-- VIEW: DASHBOARD -->
+            <div id="viewDashboard" class="view active">
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <i class="fas fa-users metric-icon"></i>
+                        <div class="metric-label">Total Validations</div>
+                        <div class="metric-value" id="valTotal">0</div>
+                        <div class="metric-change up"><i class="fas fa-arrow-up"></i> Active Cycle</div>
+                    </div>
+                    <div class="metric-card">
+                        <i class="fas fa-check-double metric-icon"></i>
+                        <div class="metric-label">Authorized</div>
+                        <div class="metric-value" id="valAuth">0</div>
+                        <div class="metric-change up"><i class="fas fa-shield-check"></i> Secured Access</div>
+                    </div>
+                    <div class="metric-card">
+                        <i class="fas fa-exclamation-triangle metric-icon"></i>
+                        <div class="metric-label">Access Denied</div>
+                        <div class="metric-value" id="valUnauth" style="color: var(--accent-red);">0</div>
+                        <div class="metric-change down" id="alertIndicator" style="display: none;"><i
+                                class="fas fa-bolt"></i> Urgent Breach</div>
+                    </div>
+                    <div class="metric-card">
+                        <i class="fas fa-microchip metric-icon"></i>
+                        <div class="metric-label">Processing Latency</div>
+                        <div class="metric-value" id="valLatency">0ms</div>
+                        <div class="metric-change up">Optimized Engine</div>
+                    </div>
                 </div>
 
-                <div class="method-selector">
-                    <div class="method-btn active" id="methodLive" onclick="setEnrollMethod('live')">📷 Live Camera
-                        Capture</div>
-                    <div class="method-btn" id="methodUpload" onclick="setEnrollMethod('upload')">🖼️ Image Upload from
-                        PC</div>
+                <div class="main-grid">
+                    <div class="glass-panel">
+                        <div class="panel-title">
+                            <h3>Real-Time Security Feed</h3>
+                            <div style="display: flex; gap: 10px;">
+                                <button class="btn-glow btn-start" id="btnStart" onclick="toggleSystem(true)">Process
+                                    On</button>
+                                <button class="btn-glow btn-stop" id="btnStop" onclick="toggleSystem(false)"
+                                    style="display: none;">Stop</button>
+                            </div>
+                        </div>
+                        <div class="video-container">
+                            <img src="{{ url_for('main.video_feed') }}" alt="Live Feed">
+                            <div class="video-overlay">
+                                <span class="badge badge-blue">NODE: {{ system_id[:8] }}</span>
+                                <span class="badge badge-success">MJPEG 30FPS</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel">
+                        <div class="panel-title">
+                            <h3>Identity Verification</h3>
+                        </div>
+                        <div id="latestResult" style="text-align: center; padding: 20px 0;">
+                            <div
+                                style="width: 120px; height: 120px; border-radius: 50%; border: 4px solid var(--border); margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; background: var(--glass);">
+                                <i class="fas fa-user-shield" style="font-size: 3rem; color: var(--text-muted);"></i>
+                            </div>
+                            <h2 id="resDriver" style="font-family: 'Orbitron';">Scanning...</h2>
+                            <p id="resStatus" style="color: var(--text-muted); margin-top: 10px;">Waiting for detection
+                            </p>
+                        </div>
+
+                        <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px;">
+                            <div
+                                style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.8rem;">
+                                <span>Similarity Score</span>
+                                <span id="resScore">0.00</span>
+                            </div>
+                            <div
+                                style="height: 6px; background: var(--glass-strong); border-radius: 3px; overflow: hidden;">
+                                <div id="resBar"
+                                    style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="enroll-form-grid">
+                <div class="glass-panel" style="margin-top: 30px;">
+                    <div class="panel-title">
+                        <h3>Transaction History</h3>
+                    </div>
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Subject</th>
+                                <th>Match</th>
+                                <th>Status</th>
+                                <th>Engine Speed</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- VIEW: ENROLLMENT -->
+            <div id="viewEnrollment" class="view">
+                <div class="dashboard-header">
                     <div>
-                        <div class="form-group">
-                            <label>Full Driver Name</label>
-                            <input type="text" id="enrollName" class="form-control" placeholder="e.g. John Doe">
-                        </div>
-                        <div class="form-group">
-                            <label>Identification Number (Student ID / License)</label>
-                            <input type="text" id="enrollID" class="form-control" placeholder="e.g. ID-2024-001">
-                        </div>
-                        <div style="margin-top: 30px;">
-                            <button class="btn btn-success" id="btnSaveDriver" onclick="saveDriver()">💾 Save and Enroll
-                                Driver</button>
-                            <p id="enrollStatus" style="margin-top: 15px; font-weight: bold;"></p>
-                        </div>
+                        <h1>BIOMETRIC ENROLLMENT</h1>
+                        <p>Register new authorized personnel into the secure database.</p>
                     </div>
+                </div>
 
-                    <div style="display: flex; flex-direction: column; align-items: center;">
-                        <div class="capture-area" id="captureArea">
-                            <span id="capturePlaceholder">No image selected</span>
-                            <img src="" id="capturePreview" class="capture-preview">
+                <div class="glass-panel">
+                    <div class="enroll-grid">
+                        <div>
+                            <div class="menu-section-label">Identity Metadata</div>
+                            <input type="text" id="enrollName" class="input-dark" placeholder="Legal Full Name">
+                            <input type="text" id="enrollID" class="input-dark" placeholder="Authorized ID Number">
+
+                            <div class="menu-section-label" style="margin-top: 20px;">Security Method</div>
+                            <div style="display: flex; gap: 10px; margin-bottom: 30px;">
+                                <button class="btn-glow btn-outline active" style="flex: 1;">Live Capture</button>
+                                <button class="btn-glow btn-outline" style="flex: 1;">Secure Upload</button>
+                            </div>
+
+                            <button class="btn-glow btn-start" id="btnSaveDriver" style="width: 100%; padding: 20px;"
+                                onclick="saveDriver()">Commit to Database</button>
+                            <div id="enrollMsg" style="margin-top: 20px; font-size: 0.9rem; text-align: center;"></div>
                         </div>
-                        <div style="margin-top: 20px; width: 100%; max-width: 400px; display: flex; gap: 10px;">
-                            <button class="btn btn-primary" id="btnCapture" style="flex: 1;"
-                                onclick="captureLive()">Take Snapshot</button>
-                            <input type="file" id="uploadInput" style="display: none;" accept="image/*"
-                                onchange="handleFileUpload(event)">
-                            <button class="btn btn-outline" id="btnUpload" style="flex: 1; display: none;"
-                                onclick="document.getElementById('uploadInput').click()">Browse Files</button>
+
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <div class="capture-frame">
+                                <img src="" id="enrollPreview"
+                                    style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                                <div id="enrollPlaceholder" style="text-align: center; color: var(--text-muted);">
+                                    <i class="fas fa-camera" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                                    <p>Ready for Capture</p>
+                                </div>
+                                <!-- Progress Overlay -->
+                                <div id="captureProgress"
+                                    style="position: absolute; bottom: 0; left: 0; width: 0%; height: 6px; background: var(--secondary); transition: width 0.2s; display: none;">
+                                </div>
+                            </div>
+                            <div id="captureStatus"
+                                style="margin-top: 10px; font-size: 0.8rem; color: var(--primary); display: none;">
+                                Captured Sample 0 of 5</div>
+                            <button class="btn-glow btn-outline" id="btnCapture" style="margin-top: 20px; width: 200px;"
+                                onclick="startEnrollmentWorkflow()">Start Enrollment</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="panel" id="enrollmentFeedback"
-                style="display: none; background-color: rgba(46, 204, 113, 0.1);">
-                <div class="panel-heading" style="border-bottom: 2px solid var(--accent-green);">
-                    <h3 style="color: var(--accent-green);">Enrollment Successful</h3>
+            <!-- VIEW: AUDIT -->
+            <div id="viewAudit" class="view">
+                <div class="dashboard-header">
+                    <div>
+                        <h1>SYSTEM AUDIT LOGS</h1>
+                        <p>Full traceability of administrative actions and secure events.</p>
+                    </div>
                 </div>
-                <p>Biometric signature generated and stored securely in database.</p>
+
+                <div class="glass-panel">
+                    <div class="audit-list" id="auditList">
+                        <!-- Audit items injected here -->
+                    </div>
+                </div>
             </div>
+
         </div>
-    </div>
+    </main>
 
     <script>
-        // Clock
-        function updateClock() {
-            const now = new Date();
-            document.getElementById('navTime').innerText = now.toLocaleTimeString();
-            document.getElementById('navDate').innerText = now.toISOString().split('T')[0];
+        // Real-time Clock
+        function startClock() {
+            setInterval(() => {
+                const now = new Date();
+                document.getElementById('clock').innerText = now.toLocaleTimeString();
+            }, 1000);
         }
-        setInterval(updateClock, 1000);
-        updateClock();
 
-        // View Toggling
-        function switchView(view) {
-            document.querySelectorAll('.content-view').forEach(v => v.classList.remove('active'));
+        // View Controller
+        function switchView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
 
-            if (view === 'monitoring') {
-                document.getElementById('viewMonitoring').classList.add('active');
-                event.target.closest('.menu-item').classList.add('active');
-            } else if (view === 'enrollment') {
-                document.getElementById('viewEnrollment').classList.add('active');
-                event.target.closest('.menu-item').classList.add('active');
-            }
+            const activeView = document.getElementById('view' + viewId.charAt(0).toUpperCase() + viewId.slice(1));
+            activeView.classList.add('active');
+
+            // Highlight menu
+            const items = document.querySelectorAll('.menu-item');
+            items.forEach(item => {
+                if (item.innerText.toLowerCase().includes(viewId.toLowerCase()) ||
+                    (viewId === 'dashboard' && item.innerText.toLowerCase().includes('operations'))) {
+                    item.classList.add('active');
+                }
+            });
+
+            document.getElementById('viewTitle').innerText = viewId.toUpperCase() + " CENTER";
+
+            if (viewId === 'audit') fetchAuditLogs();
         }
 
-        // Monitoring Updates
-        async function refreshDashboard() {
-            if (!document.getElementById('viewMonitoring').classList.contains('active')) return;
+        // Dashboard Data Fetching
+        async function fetchDashboard() {
+            if (!document.getElementById('viewDashboard').classList.contains('active')) return;
+
             try {
-                const response = await fetch('/api/status');
-                const data = await response.json();
-                document.getElementById('valDailyTotal').innerText = data.daily_stats.total;
-                document.getElementById('valDailyAuth').innerText = data.daily_stats.authorized;
-                document.getElementById('valDailyUnauth').innerText = data.daily_stats.unauthorized;
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                // Main Stats
+                document.getElementById('valTotal').innerText = data.stats.total_verifications;
+                document.getElementById('valAuth').innerText = data.stats.authorized_count;
+                document.getElementById('valUnauth').innerText = data.stats.unauthorized_count;
                 document.getElementById('valLatency').innerText = data.stats.avg_processing_time_ms.toFixed(0) + 'ms';
 
-                const latestUnauth = data.recent_logs.find(log => !log.authorized);
-                if (latestUnauth) {
-                    const banner = document.getElementById('alertBanner');
-                    const evidencePanel = document.getElementById('evidencePanel');
-                    const logTime = new Date(latestUnauth.timestamp).getTime();
-                    const now = new Date().getTime();
-                    if (now - logTime < 10000) {
-                        banner.style.display = 'block';
-                        evidencePanel.style.display = 'block';
-                        const imgPath = latestUnauth.image_path.replace(/\\/g, '/');
-                        document.getElementById('evidenceImg').src = `/api/logs/image/${imgPath}`;
-                    } else {
-                        banner.style.display = 'none';
-                    }
-                }
-
-                const tbody = document.getElementById('logsBody');
-                tbody.innerHTML = '';
-                data.recent_logs.forEach(log => {
-                    const row = document.createElement('tr');
-                    const statusClass = log.authorized ? 'text-authorized' : 'text-unauthorized';
-                    row.innerHTML = `
-                        <td>${log.timestamp.split(' ')[1]}</td>
-                        <td>${log.driver_name} ${log.authorized ? '' : '<span class="badge-new">WARNING</span>'}</td>
-                        <td><code style="font-family: 'JetBrains Mono';">${log.similarity_score}</code></td>
-                        <td class="status-text ${statusClass}">${log.authorized ? 'AUTHORIZED' : 'UNAUTHORIZED'}</td>
-                        <td>${log.processing_time_ms}ms</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } catch (err) { console.error(err); }
-        }
-        setInterval(refreshDashboard, 2000);
-        refreshDashboard();
-
-        // Enrollment Logic
-        let currentEnrollMethod = 'live';
-        let currentEnrollImage = null;
-
-        function setEnrollMethod(method) {
-            currentEnrollMethod = method;
-            document.getElementById('methodLive').classList.toggle('active', method === 'live');
-            document.getElementById('methodUpload').classList.toggle('active', method === 'upload');
-            document.getElementById('btnCapture').style.display = method === 'live' ? 'block' : 'none';
-            document.getElementById('btnUpload').style.display = method === 'upload' ? 'block' : 'none';
-
-            // Clear current selection
-            currentEnrollImage = null;
-            document.getElementById('capturePreview').style.display = 'none';
-            document.getElementById('capturePlaceholder').style.display = 'block';
-            document.getElementById('enrollStatus').innerText = '';
-        }
-
-        async function captureLive() {
-            const status = document.getElementById('enrollStatus');
-            status.innerText = "Capturing...";
-            try {
-                const response = await fetch('/api/enroll/live', { method: 'POST' });
-                const data = await response.json();
-                if (data.image) {
-                    currentEnrollImage = data.image;
-                    const preview = document.getElementById('capturePreview');
-                    preview.src = "data:image/jpeg;base64," + data.image;
-                    preview.style.display = 'block';
-                    document.getElementById('capturePlaceholder').style.display = 'none';
-                    status.innerText = "Live frame captured.";
-                    status.style.color = "var(--accent-blue)";
+                // Engine Status
+                const btnStart = document.getElementById('btnStart');
+                const btnStop = document.getElementById('btnStop');
+                if (data.system_status === 'active') {
+                    btnStart.style.display = 'none';
+                    btnStop.style.display = 'block';
                 } else {
-                    status.innerText = "Capture failed: " + data.error;
-                    status.style.color = "var(--accent-red)";
+                    btnStart.style.display = 'block';
+                    btnStop.style.display = 'none';
                 }
-            } catch (err) { status.innerText = "Error: " + err; }
+
+                // Latest Result
+                if (data.latest_verification) {
+                    const lv = data.latest_verification;
+                    const resDriver = document.getElementById('resDriver');
+                    const resStatus = document.getElementById('resStatus');
+                    const resScore = document.getElementById('resScore');
+                    const resBar = document.getElementById('resBar');
+
+                    resDriver.innerText = lv.driver_name;
+                    resStatus.innerText = lv.authorized ? "Access Granted" : "Immobilizer Engaged";
+                    resStatus.style.color = lv.authorized ? "var(--secondary)" : "var(--accent-red)";
+                    resScore.innerText = lv.similarity.toFixed(4);
+                    resBar.style.width = (lv.similarity * 100) + "%";
+                }
+
+                // Logs Table
+                const tbody = document.getElementById('logsTbody');
+                tbody.innerHTML = '';
+                if (data.recent_logs) {
+                    data.recent_logs.slice(0, 10).forEach(log => {
+                        const row = document.createElement('tr');
+                        const statusBadge = log.authorized ?
+                            '<span class="badge badge-success">Authorized</span>' :
+                            '<span class="badge badge-danger">Denied</span>';
+
+                        row.innerHTML = `
+                            <td>${log.timestamp.includes('T') ? log.timestamp.split('T')[1].split('.')[0] : log.timestamp}</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div class="avatar-small"><i class="fas fa-user"></i></div>
+                                    <span>${log.driver_name}</span>
+                                </div>
+                            </td>
+                            <td><code>${log.similarity_score.toFixed(3)}</code></td>
+                            <td>${statusBadge}</td>
+                            <td>${log.processing_time_ms.toFixed(0)} ms</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+
+            } catch (e) { console.error("Update fail", e); }
         }
 
-        function handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        // Audit Logs Fetching
+        async function fetchAuditLogs() {
+            try {
+                const res = await fetch('/api/audit');
+                const data = await res.json();
+                const list = document.getElementById('auditList');
+                list.innerHTML = '';
 
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                currentEnrollImage = e.target.result;
-                const preview = document.getElementById('capturePreview');
-                preview.src = e.target.result;
-                preview.style.display = 'block';
-                document.getElementById('capturePlaceholder').style.display = 'none';
-                document.getElementById('enrollStatus').innerText = "Image uploaded.";
-                document.getElementById('enrollStatus').style.color = "var(--accent-blue)";
-            };
-            reader.readAsDataURL(file);
+                data.forEach(log => {
+                    const item = document.createElement('div');
+                    item.className = 'audit-item';
+
+                    // Action specific colors
+                    if (log.action.includes('FAILURE')) item.style.borderColor = 'var(--accent-red)';
+                    if (log.action.includes('START')) item.style.borderColor = 'var(--secondary)';
+
+                    item.innerHTML = `
+                        <div>
+                            <div class="audit-action">${log.action}</div>
+                            <div class="audit-meta">User: ${log.user_email} • IP: ${log.ip_address}</div>
+                            <div style="font-size: 0.8rem; margin-top: 5px; opacity: 0.8;">${log.details}</div>
+                        </div>
+                        <div style="font-family: 'Orbitron'; font-size: 0.7rem; color: var(--primary);">
+                            ${log.timestamp.replace('T', ' ').split('.')[0]}
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (e) { console.error("Audit fail", e); }
         }
 
-        async function saveDriver() {
+        // Engine Control
+        async function toggleSystem(start) {
+            try {
+                const endpoint = start ? '/api/system/start' : '/api/system/stop';
+                const response = await fetch(endpoint, { method: 'POST' });
+                const data = await response.json();
+                if (data.success) fetchDashboard();
+            } catch (err) { alert("Switch Fail: " + err); }
+        }
+
+        // Multi-Sample Enrollment Workflow
+        let enrollmentSamples = [];
+        const TOTAL_SAMPLES = 5;
+
+        async function startEnrollmentWorkflow() {
             const name = document.getElementById('enrollName').value;
             const id = document.getElementById('enrollID').value;
-            const status = document.getElementById('enrollStatus');
+            const msg = document.getElementById('enrollMsg');
+            const btn = document.getElementById('btnCapture');
+            const statusText = document.getElementById('captureStatus');
+            const progressBar = document.getElementById('captureProgress');
 
-            if (!name || !id || !currentEnrollImage) {
-                status.innerText = "Error: Please fill all fields and provide an image.";
-                status.style.color = "var(--accent-red)";
+            if (!name || !id) {
+                msg.innerText = "Error: Name and ID are required before enrollment.";
+                msg.style.color = "var(--accent-red)";
                 return;
             }
 
-            status.innerText = "Processing biometrics... please wait.";
-            status.style.color = "var(--bg-sidebar)";
-            document.getElementById('btnSaveDriver').disabled = true;
+            msg.innerText = "Initializing multi-sample biometric capture...";
+            msg.style.color = "#fff";
+            btn.disabled = true;
+            enrollmentSamples = [];
+
+            statusText.style.display = 'block';
+            progressBar.style.display = 'block';
+
+            for (let i = 1; i <= TOTAL_SAMPLES; i++) {
+                statusText.innerText = `Capturing Sample ${i} of ${TOTAL_SAMPLES}...`;
+                progressBar.style.width = `${(i / TOTAL_SAMPLES) * 100}%`;
+
+                try {
+                    const res = await fetch('/api/enroll/live', { method: 'POST' });
+                    const data = await res.json();
+
+                    if (data.image) {
+                        enrollmentSamples.push(data.image);
+
+                        // Update preview with the latest capture
+                        const preview = document.getElementById('enrollPreview');
+                        preview.src = "data:image/jpeg;base64," + data.image;
+                        preview.style.display = 'block';
+                        document.getElementById('enrollPlaceholder').style.display = 'none';
+                    } else {
+                        throw new Error(data.error || "Capture failed");
+                    }
+                } catch (e) {
+                    msg.innerText = `Error at sample ${i}: ${e.message}. Please restart.`;
+                    msg.style.color = "var(--accent-red)";
+                    btn.disabled = false;
+                    return;
+                }
+
+                // Small delay between captures for slight variations
+                await new Promise(r => setTimeout(r, 300));
+            }
+
+            statusText.innerText = "Analyzing biometric samples...";
+            await commitEnrollment(name, id);
+        }
+
+        async function commitEnrollment(name, id) {
+            const msg = document.getElementById('enrollMsg');
+            const btn = document.getElementById('btnCapture');
+            const btnCommit = document.getElementById('btnSaveDriver');
 
             try {
-                const response = await fetch('/api/enroll/save', {
+                const res = await fetch('/api/enroll/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, driver_id: id, image: currentEnrollImage })
+                    body: JSON.stringify({ name, driver_id: id, images: enrollmentSamples })
                 });
-                const data = await response.json();
+                const data = await res.json();
 
-                if (response.ok) {
-                    status.innerText = "✔ " + data.message;
-                    status.style.color = "var(--accent-green)";
-                    document.getElementById('enrollmentFeedback').style.display = 'block';
-                    // Reset form after delay
+                if (data.success) {
+                    msg.innerText = data.message;
+                    msg.style.color = "var(--secondary)";
+
+                    // Stop camera after successful enrollment
+                    await fetch('/api/camera/stop', { method: 'POST' });
+
+                    // Reset UI after success
                     setTimeout(() => {
                         document.getElementById('enrollName').value = '';
                         document.getElementById('enrollID').value = '';
-                        setEnrollMethod('live');
-                        document.getElementById('enrollmentFeedback').style.display = 'none';
-                        document.getElementById('btnSaveDriver').disabled = false;
-                    }, 5000);
+                        document.getElementById('enrollPreview').style.display = 'none';
+                        document.getElementById('enrollPlaceholder').style.display = 'block';
+                        document.getElementById('captureStatus').style.display = 'none';
+                        document.getElementById('captureProgress').style.display = 'none';
+                        msg.innerText = '';
+                        btn.disabled = false;
+                    }, 4000);
                 } else {
-                    status.innerText = "❌ " + (data.error || "Enrollment failed");
-                    status.style.color = "var(--accent-red)";
-                    document.getElementById('btnSaveDriver').disabled = false;
+                    msg.innerText = "Error: " + data.error;
+                    msg.style.color = "var(--accent-red)";
+                    btn.disabled = false;
+
+                    // Stop camera on error too
+                    await fetch('/api/camera/stop', { method: 'POST' });
                 }
-            } catch (err) {
-                status.innerText = "Error: " + err;
-                status.style.color = "var(--accent-red)";
-                document.getElementById('btnSaveDriver').disabled = false;
+            } catch (e) {
+                msg.innerText = "Fatal: " + e;
+                btn.disabled = false;
+
+                // Stop camera on fatal error
+                await fetch('/api/camera/stop', { method: 'POST' });
             }
         }
+
+        async function captureLive() {
+            // Deprecated in favor of startEnrollmentWorkflow mapping
+            startEnrollmentWorkflow();
+        }
+
+        async function saveDriver() {
+            // Deprecated: logic pushed into the workflow
+            const msg = document.getElementById('enrollMsg');
+            msg.innerText = "Please use 'Start Enrollment' to begin capture.";
+            msg.style.color = "var(--primary)";
+        }
+
+        // Init
+        startClock();
+        setInterval(fetchDashboard, 2000);
+        fetchDashboard();
     </script>
 </body>
 

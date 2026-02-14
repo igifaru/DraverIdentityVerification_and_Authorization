@@ -69,3 +69,23 @@ class VerificationLog:
             'processing_time_ms': f"{self.processing_time_ms:.2f}",
             'image_path': self.image_path if self.image_path else ''
         }
+@dataclass
+class SystemAuditLog:
+    """System audit log for administrative actions"""
+    audit_id: Optional[int] = None
+    timestamp: Optional[datetime] = None
+    action: str = ""  # e.g., "LOGIN", "START_ENGINE", "STOP_ENGINE"
+    user_email: str = ""
+    details: Optional[str] = None
+    ip_address: Optional[str] = None
+    
+    def to_dict(self) -> dict:
+        """Convert audit log to dictionary"""
+        return {
+            'audit_id': self.audit_id,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'action': self.action,
+            'user_email': self.user_email,
+            'details': self.details,
+            'ip_address': self.ip_address
+        }

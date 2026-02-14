@@ -165,6 +165,21 @@ class Config:
         """Get debug mode flag"""
         return self.get('system.debug_mode', False)
     
+    @property
+    def system_id(self) -> str:
+        """Get system identifier"""
+        return self.get('system.system_id', 'UNKNOWN-ID')
+    
+    @property
+    def vehicle_plate(self) -> str:
+        """Get vehicle plate number"""
+        return self.get('system.vehicle_plate', 'UNKNOWN-PLATE')
+    
+    @property
+    def owner_name(self) -> str:
+        """Get owner name"""
+        return self.get('system.owner_name', 'UNKNOWN-OWNER')
+    
     def validate(self) -> bool:
         """Validate critical configuration parameters"""
         errors = []

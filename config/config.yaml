@@ -1,9 +1,12 @@
 verification:
   similarity_threshold: 0.6  # Tunable threshold for face matching (0.0-1.0)
+  enable_liveness: true # Enable liveness for security
   liveness_ear_threshold: 0.25  # Eye Aspect Ratio threshold for blink detection
   liveness_blink_frames: 3  # Minimum consecutive frames for blink detection
   max_processing_time_ms: 1500  # Maximum allowed processing time
   confidence_threshold: 0.95  # Minimum confidence for face detection
+  enable_cooldown: true # Enable cooldown to prevent CPU overload
+  cooldown_seconds: 2.0 # Wait 2 seconds between verifications
 
 camera:
   resolution_width: 640
@@ -29,6 +32,9 @@ logging:
   save_unauthorized_images: true  # Save images of unauthorized attempts
 
 system:
+  system_id: "DRV-AX-9000"  # Unique software-based identifier for this instance
+  vehicle_plate: "KCB-884X"  # Registered plate number
+  owner_name: "Fleet Ops - Sector 7"  # Vehicle owner/department
   debug_mode: false  # Enable debug logging (set to false to avoid camera conflicts in dashboard)
   show_video_preview: true  # Show live video feed during verification
   enrollment_image_count: 5  # Number of images to capture during enrollment

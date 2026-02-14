@@ -182,13 +182,16 @@
 <body>
     <div class="header">
         <div class="system-name">Biometric Identity Verification</div>
+        <div style="font-size: 0.9rem; color: rgba(255,255,255,0.5); margin-top: 5px;">
+            VEHICLE: {{ vehicle_plate }}
+        </div>
     </div>
 
     <div class="container">
         <div class="video-wrapper">
             <div class="scanning-line" id="scanningLine"></div>
             <div class="center-guide"></div>
-            <img src="{{ url_for('video_feed') }}" class="video-feed" alt="Video Feed">
+            <img src="{{ url_for('main.video_feed') }}" class="video-feed" alt="Video Feed">
         </div>
 
         <div class="status-container" id="statusPanel">
@@ -204,7 +207,7 @@
     <script>
         async function updateStatus() {
             try {
-                const response = await fetch('/api/driver/status');
+                const response = await fetch('/api/status/driver');
                 const data = await response.json();
 
                 const statusText = document.getElementById('statusText');

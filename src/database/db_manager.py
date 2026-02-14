@@ -1,6 +1,7 @@
 """
 Database Manager
-Handles all SQLite database operations for driver enrollment and verification logging
+Handles all SQLite database operations for driver enrollment and verification logging.
+Refactored to use Repository pattern.
 """
 
 import sqlite3
@@ -9,12 +10,15 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
-from database.models import Driver, VerificationLog
+
+from database.models import Driver, VerificationLog, SystemAuditLog
+from database.driver_repository import DriverRepository
+from database.verification_repository import VerificationRepository
+from database.audit_repository import AuditRepository
 from utils.config import config
 
-
 class DatabaseManager:
-    """Manages SQLite database operations"""
+    """Manages SQLite database operations via repositories"""
     
     def __init__(self, db_path: str = None):
         """
@@ -26,6 +30,11 @@ class DatabaseManager:
         self.db_path = db_path or config.database_path
         self._ensure_database_exists()
         self._create_tables()
+
+        # Initialize repositories
+        self.driver_repo = DriverRepository(self._get_connection)
+        self.verification_repo = VerificationRepository(self._get_connection)
+        self.audit_repo = AuditRepository(self._get_connection)
     
     def _ensure_database_exists(self):
         """Ensure database directory exists"""
@@ -78,419 +87,117 @@ class DatabaseManager:
             ON verification_logs(timestamp DESC)
         """)
         
+        # Create audit_logs table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                audit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                action TEXT NOT NULL,
+                user_email TEXT,
+                details TEXT,
+                ip_address TEXT
+            )
+        """)
+        
         conn.commit()
         conn.close()
     
     # ==================== Driver Operations ====================
     
     def enroll_driver(self, name: str, embedding: np.ndarray, email: str = None, id_number: str = None) -> int:
-        """
-        Enroll a new driver in the database
-        
-        Args:
-            name: Driver's name
-            embedding: 128-dimensional FaceNet embedding
-            email: Optional email address
-            id_number: Optional identification number
-            
-        Returns:
-            driver_id of the newly enrolled driver
-        """
-        # Serialize embedding
-        embedding_blob = pickle.dumps(embedding)
-        
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO drivers (name, biometric_embedding, email, id_number)
-            VALUES (?, ?, ?, ?)
-        """, (name, embedding_blob, email, id_number))
-        
-        driver_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        
-        return driver_id
+        """Enroll a new driver in the database"""
+        return self.driver_repo.enroll(name, embedding, email, id_number)
     
     def get_driver(self, driver_id: int) -> Optional[Driver]:
-        """
-        Get driver by ID
-        
-        Args:
-            driver_id: Driver ID
-            
-        Returns:
-            Driver object or None if not found
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT * FROM drivers WHERE driver_id = ?
-        """, (driver_id,))
-        
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            return self._row_to_driver(row)
-        return None
+        """Get driver by ID"""
+        return self.driver_repo.get_by_id(driver_id)
     
     def get_driver_by_name(self, name: str) -> Optional[Driver]:
-        """
-        Get driver by name
-        
-        Args:
-            name: Driver's name
-            
-        Returns:
-            Driver object or None if not found
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT * FROM drivers WHERE name = ? AND status = 'active'
-        """, (name,))
-        
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            return self._row_to_driver(row)
-        return None
+        """Get driver by name"""
+        return self.driver_repo.get_by_name(name)
     
     def get_all_drivers(self, active_only: bool = True) -> List[Driver]:
-        """
-        Get all drivers
-        
-        Args:
-            active_only: If True, only return active drivers
-            
-        Returns:
-            List of Driver objects
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        if active_only:
-            cursor.execute("""
-                SELECT * FROM drivers WHERE status = 'active'
-                ORDER BY enrollment_date DESC
-            """)
-        else:
-            cursor.execute("""
-                SELECT * FROM drivers ORDER BY enrollment_date DESC
-            """)
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [self._row_to_driver(row) for row in rows]
+        """Get all drivers"""
+        return self.driver_repo.get_all(active_only)
     
     def get_all_embeddings(self) -> List[Tuple[int, str, np.ndarray]]:
-        """
-        Get all driver embeddings for verification
-        
-        Returns:
-            List of tuples (driver_id, name, embedding)
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT driver_id, name, biometric_embedding 
-            FROM drivers 
-            WHERE status = 'active'
-        """)
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        embeddings = []
-        for row in rows:
-            embedding = pickle.loads(row['biometric_embedding'])
-            embeddings.append((row['driver_id'], row['name'], embedding))
-        
-        return embeddings
+        """Get all driver embeddings for verification"""
+        return self.driver_repo.get_all_embeddings()
     
     def update_driver_status(self, driver_id: int, status: str) -> bool:
-        """
-        Update driver status (active/inactive)
-        
-        Args:
-            driver_id: Driver ID
-            status: New status ('active' or 'inactive')
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            UPDATE drivers SET status = ? WHERE driver_id = ?
-        """, (status, driver_id))
-        
-        success = cursor.rowcount > 0
-        conn.commit()
-        conn.close()
-        
-        return success
+        """Update driver status (active/inactive)"""
+        return self.driver_repo.update_status(driver_id, status)
     
     def delete_driver(self, driver_id: int) -> bool:
-        """
-        Delete a driver (soft delete by setting status to inactive)
-        
-        Args:
-            driver_id: Driver ID
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Delete a driver (soft delete by setting status to inactive)"""
         return self.update_driver_status(driver_id, 'inactive')
     
     def driver_exists(self, name: str) -> bool:
-        """
-        Check if a driver with the given name exists
-        
-        Args:
-            name: Driver's name
-            
-        Returns:
-            True if driver exists, False otherwise
-        """
-        driver = self.get_driver_by_name(name)
-        return driver is not None
+        """Check if a driver with the given name exists"""
+        return self.driver_repo.exists(name)
     
     # ==================== Verification Log Operations ====================
     
     def log_verification(self, log: VerificationLog) -> int:
-        """
-        Log a verification attempt
-        
-        Args:
-            log: VerificationLog object
-            
-        Returns:
-            log_id of the created log entry
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO verification_logs 
-            (driver_id, driver_name, similarity_score, authorized, 
-             processing_time_ms, image_path, liveness_passed)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            log.driver_id,
-            log.driver_name,
-            log.similarity_score,
-            log.authorized,
-            log.processing_time_ms,
-            log.image_path,
-            log.liveness_passed
-        ))
-        
-        log_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        
-        return log_id
+        """Log a verification attempt"""
+        return self.verification_repo.log_verification(log)
     
     def get_recent_logs(self, limit: int = 100) -> List[VerificationLog]:
-        """
-        Get recent verification logs
-        
-        Args:
-            limit: Maximum number of logs to return
-            
-        Returns:
-            List of VerificationLog objects
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT * FROM verification_logs 
-            ORDER BY timestamp DESC 
-            LIMIT ?
-        """, (limit,))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [self._row_to_log(row) for row in rows]
+        """Get recent verification logs"""
+        return self.verification_repo.get_recent(limit)
     
     def get_logs_by_driver(self, driver_id: int, limit: int = 50) -> List[VerificationLog]:
-        """
-        Get verification logs for a specific driver
-        
-        Args:
-            driver_id: Driver ID
-            limit: Maximum number of logs to return
-            
-        Returns:
-            List of VerificationLog objects
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT * FROM verification_logs 
-            WHERE driver_id = ?
-            ORDER BY timestamp DESC 
-            LIMIT ?
-        """, (driver_id, limit))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [self._row_to_log(row) for row in rows]
+        """Get verification logs for a specific driver"""
+        return self.verification_repo.get_by_driver(driver_id, limit)
     
     def get_unauthorized_attempts(self, limit: int = 50) -> List[VerificationLog]:
-        """
-        Get recent unauthorized access attempts
-        
-        Args:
-            limit: Maximum number of logs to return
-            
-        Returns:
-            List of VerificationLog objects
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT * FROM verification_logs 
-            WHERE authorized = 0
-            ORDER BY timestamp DESC 
-            LIMIT ?
-        """, (limit,))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [self._row_to_log(row) for row in rows]
+        """Get recent unauthorized access attempts"""
+        return self.verification_repo.get_unauthorized(limit)
     
     def get_statistics(self) -> dict:
-        """
-        Get verification statistics
+        """Get verification statistics"""
+        # Combine statistics from both repositories if needed, 
+        # but currently verification repo handles the bulk of stats
+        repo_stats = self.verification_repo.get_statistics()
         
-        Returns:
-            Dictionary with statistics
-        """
+        # Add total drivers from driver repo (manual query for now as it's simple)
         conn = self._get_connection()
         cursor = conn.cursor()
-        
-        # Total drivers
         cursor.execute("SELECT COUNT(*) as count FROM drivers WHERE status = 'active'")
         total_drivers = cursor.fetchone()['count']
-        
-        # Total verifications
-        cursor.execute("SELECT COUNT(*) as count FROM verification_logs")
-        total_verifications = cursor.fetchone()['count']
-        
-        # Authorized verifications
-        cursor.execute("SELECT COUNT(*) as count FROM verification_logs WHERE authorized = 1")
-        authorized_count = cursor.fetchone()['count']
-        
-        # Unauthorized attempts
-        cursor.execute("SELECT COUNT(*) as count FROM verification_logs WHERE authorized = 0")
-        unauthorized_count = cursor.fetchone()['count']
-        
-        # Average processing time
-        cursor.execute("SELECT AVG(processing_time_ms) as avg_time FROM verification_logs")
-        avg_processing_time = cursor.fetchone()['avg_time'] or 0
-        
-        # Average similarity score for authorized
-        cursor.execute("""
-            SELECT AVG(similarity_score) as avg_score 
-            FROM verification_logs 
-            WHERE authorized = 1
-        """)
-        avg_authorized_score = cursor.fetchone()['avg_score'] or 0
-        
         conn.close()
         
-        return {
-            'total_drivers': total_drivers,
-            'total_verifications': total_verifications,
-            'authorized_count': authorized_count,
-            'unauthorized_count': unauthorized_count,
-            'avg_processing_time_ms': avg_processing_time,
-            'avg_authorized_similarity': avg_authorized_score,
-            'authorization_rate': (authorized_count / total_verifications * 100) if total_verifications > 0 else 0
-        }
+        repo_stats['total_drivers'] = total_drivers
+        return repo_stats
 
     def get_daily_statistics(self) -> dict:
-        """
-        Get verification statistics for the current day
-        
-        Returns:
-            Dictionary with daily statistics
-        """
-        today = datetime.now().strftime('%Y-%m-%d')
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        # Daily total
-        cursor.execute("SELECT COUNT(*) as count FROM verification_logs WHERE date(timestamp) = ?", (today,))
-        daily_total = cursor.fetchone()['count']
-        
-        # Daily authorized
-        cursor.execute("SELECT COUNT(*) as count FROM verification_logs WHERE authorized = 1 AND date(timestamp) = ?", (today,))
-        daily_authorized = cursor.fetchone()['count']
-        
-        # Daily unauthorized
-        cursor.execute("SELECT COUNT(*) as count FROM verification_logs WHERE authorized = 0 AND date(timestamp) = ?", (today,))
-        daily_unauthorized = cursor.fetchone()['count']
-        
-        conn.close()
-        
-        return {
-            'date': today,
-            'total': daily_total,
-            'authorized': daily_authorized,
-            'unauthorized': daily_unauthorized
-        }
+        """Get verification statistics for the current day"""
+        return self.verification_repo.get_daily_statistics()
     
-    # ==================== Helper Methods ====================
+    # ==================== Audit Log Operations ====================
+    
+    def log_audit(self, action: str, user_email: str, details: str = None, ip_address: str = None):
+        """Log an administrative action"""
+        return self.audit_repo.log_event(action, user_email, details, ip_address)
+    
+    def get_audit_logs(self, limit: int = 100) -> List[SystemAuditLog]:
+        """Get recent system audit logs"""
+        return self.audit_repo.get_recent_logs(limit)
+    
+    # ==================== Helper Methods (Kept for backward compatibility if needed internally) ====================
     
     def _row_to_driver(self, row: sqlite3.Row) -> Driver:
-        """Convert database row to Driver object"""
-        embedding = pickle.loads(row['biometric_embedding'])
-        
-        return Driver(
-            driver_id=row['driver_id'],
-            name=row['name'],
-            id_number=row.get('id_number'),
-            biometric_embedding=embedding,
-            enrollment_date=datetime.fromisoformat(row['enrollment_date']),
-            email=row['email'],
-            status=row['status']
-        )
+        """DEPRECATED: Use DriverRepository._row_to_driver instead"""
+        return self.driver_repo._row_to_driver(row)
     
     def _row_to_log(self, row: sqlite3.Row) -> VerificationLog:
-        """Convert database row to VerificationLog object"""
-        return VerificationLog(
-            log_id=row['log_id'],
-            timestamp=datetime.fromisoformat(row['timestamp']),
-            driver_id=row['driver_id'],
-            driver_name=row['driver_name'],
-            similarity_score=row['similarity_score'],
-            authorized=bool(row['authorized']),
-            processing_time_ms=row['processing_time_ms'],
-            image_path=row['image_path'],
-            liveness_passed=bool(row['liveness_passed'])
-        )
+        """DEPRECATED: Use VerificationRepository._row_to_log instead"""
+        return self.verification_repo._row_to_log(row)
 
 
 if __name__ == "__main__":
     # Test database operations
-    print("Testing database operations...")
+    print("Testing refactored database operations...")
     
     db = DatabaseManager()
     print(f"Database initialized at: {db.db_path}")

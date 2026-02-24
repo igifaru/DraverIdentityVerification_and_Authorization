@@ -1,32 +1,63 @@
 """
 Driver Repository
-Handles PostgreSQL database operations for Driver entities.
-Uses psycopg2 with %s placeholders (not ? as in SQLite).
+Handles all database operations for the drivers table.
+
+Design notes:
+  - Uses psycopg2 with %s parameter placeholders (PostgreSQL style).
+  - Biometric embeddings are serialised with pickle and stored as BYTEA.
+  - Every public method opens a fresh connection and closes it on exit via
+    the _db() context manager – no connection is held between calls.
 """
+
 import pickle
+from contextlib import contextmanager
+from datetime import datetime
+from typing import Callable, List, Optional, Tuple
+
+import numpy as np
 import psycopg2
 import psycopg2.extras
-import numpy as np
-from datetime import datetime
-from typing import List, Optional, Tuple
+
 from database.models import Driver
 
 
 class DriverRepository:
-    """Repository for Driver entity operations"""
+    """
+    Repository for Driver entity CRUD operations.
 
-    def __init__(self, connection_factory):
+    All SQL lives here; no SQL should appear in DatabaseManager or above.
+    """
+
+    def __init__(self, connection_factory: Callable):
         """
         Args:
-            connection_factory: Callable that returns a psycopg2 connection.
+            connection_factory: Zero-argument callable that returns an open
+                                psycopg2 connection.
         """
-        self._get_connection = connection_factory
+        self._connect = connection_factory
 
-    def _get_cursor(self, conn):
-        return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
-    def _row_to_driver(self, row: dict) -> Driver:
-        """Convert a dict row to a Driver object."""
+    @contextmanager
+    def _db(self):
+        """Context manager: open connection + RealDictCursor, commit on exit."""
+        conn = self._connect()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            yield cursor
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
+    def _to_driver(row: dict) -> Driver:
+        """Map a DB row dict to a Driver dataclass instance."""
         embedding = pickle.loads(bytes(row['biometric_embedding']))
         ts = row['enrollment_date']
         if isinstance(ts, str):
@@ -39,102 +70,119 @@ class DriverRepository:
             biometric_embedding=embedding,
             enrollment_date=ts,
             email=row.get('email'),
-            status=row['status']
+            status=row['status'],
         )
 
-    def enroll(self, name: str, embedding: np.ndarray,
-               email: str = None, license_number: str = None,
-               category: str = 'A') -> int:
-        """Enroll a new driver."""
+    # ------------------------------------------------------------------
+    # Write operations
+    # ------------------------------------------------------------------
+
+    def enroll(
+        self,
+        name: str,
+        embedding: np.ndarray,
+        email: Optional[str] = None,
+        license_number: Optional[str] = None,
+        category: str = 'A',
+    ) -> int:
+        """
+        Insert a new driver row and return the generated driver_id.
+
+        Args:
+            name:           Legal full name.
+            embedding:      FaceNet embedding as a NumPy array.
+            email:          Optional contact email.
+            license_number: Driving licence number.
+            category:       Comma-separated category codes, e.g. "A,B,C".
+
+        Returns:
+            The new driver_id assigned by PostgreSQL.
+        """
         embedding_blob = psycopg2.Binary(pickle.dumps(embedding))
-        conn = self._get_connection()
-        cursor = self._get_cursor(conn)
-        try:
-            cursor.execute("""
+        with self._db() as cur:
+            cur.execute(
+                """
                 INSERT INTO drivers (name, license_number, category, biometric_embedding, email)
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING driver_id
-            """, (name, license_number, category, embedding_blob, email))
-            driver_id = cursor.fetchone()['driver_id']
-            conn.commit()
-            return driver_id
-        finally:
-            cursor.close()
-            conn.close()
+                """,
+                (name, license_number, category, embedding_blob, email),
+            )
+            return cur.fetchone()['driver_id']
+
+    def update_status(self, driver_id: int, status: str) -> bool:
+        """
+        Update the status field for a given driver.
+
+        Returns:
+            True if a row was actually updated, False otherwise.
+        """
+        with self._db() as cur:
+            cur.execute(
+                "UPDATE drivers SET status = %s WHERE driver_id = %s",
+                (status, driver_id),
+            )
+            return cur.rowcount > 0
+
+    # ------------------------------------------------------------------
+    # Read operations
+    # ------------------------------------------------------------------
 
     def get_by_id(self, driver_id: int) -> Optional[Driver]:
-        conn = self._get_connection()
-        cursor = self._get_cursor(conn)
-        try:
-            cursor.execute("SELECT * FROM drivers WHERE driver_id = %s", (driver_id,))
-            row = cursor.fetchone()
-            return self._row_to_driver(row) if row else None
-        finally:
-            cursor.close()
-            conn.close()
+        """Return the Driver with the given ID, or None."""
+        with self._db() as cur:
+            cur.execute("SELECT * FROM drivers WHERE driver_id = %s", (driver_id,))
+            row = cur.fetchone()
+        return self._to_driver(row) if row else None
 
     def get_by_name(self, name: str) -> Optional[Driver]:
-        conn = self._get_connection()
-        cursor = self._get_cursor(conn)
-        try:
-            cursor.execute(
-                "SELECT * FROM drivers WHERE name = %s AND status = 'active'", (name,))
-            row = cursor.fetchone()
-            return self._row_to_driver(row) if row else None
-        finally:
-            cursor.close()
-            conn.close()
+        """Return the active Driver with the given name, or None."""
+        with self._db() as cur:
+            cur.execute(
+                "SELECT * FROM drivers WHERE name = %s AND status = 'active'",
+                (name,),
+            )
+            row = cur.fetchone()
+        return self._to_driver(row) if row else None
 
     def get_all(self, active_only: bool = True) -> List[Driver]:
-        conn = self._get_connection()
-        cursor = self._get_cursor(conn)
-        try:
+        """
+        Return all drivers ordered by enrollment date (newest first).
+
+        Args:
+            active_only: When True, skip inactive/deleted drivers.
+        """
+        with self._db() as cur:
             if active_only:
-                cursor.execute("""
-                    SELECT * FROM drivers WHERE status = 'active'
-                    ORDER BY enrollment_date DESC
-                """)
+                cur.execute(
+                    "SELECT * FROM drivers WHERE status = 'active' ORDER BY enrollment_date DESC"
+                )
             else:
-                cursor.execute("SELECT * FROM drivers ORDER BY enrollment_date DESC")
-            rows = cursor.fetchall()
-            return [self._row_to_driver(row) for row in rows]
-        finally:
-            cursor.close()
-            conn.close()
+                cur.execute("SELECT * FROM drivers ORDER BY enrollment_date DESC")
+            rows = cur.fetchall()
+        return [self._to_driver(row) for row in rows]
 
     def get_all_embeddings(self) -> List[Tuple[int, str, np.ndarray]]:
-        """Get all active driver embeddings for verification."""
-        conn = self._get_connection()
-        cursor = self._get_cursor(conn)
-        try:
-            cursor.execute("""
+        """
+        Return (driver_id, name, embedding) tuples for all active drivers.
+
+        Used by the verification engine to load embeddings into memory.
+        """
+        with self._db() as cur:
+            cur.execute(
+                """
                 SELECT driver_id, name, biometric_embedding
                 FROM drivers
                 WHERE status = 'active'
-            """)
-            rows = cursor.fetchall()
-            result = []
-            for row in rows:
-                embedding = pickle.loads(bytes(row['biometric_embedding']))
-                result.append((row['driver_id'], row['name'], embedding))
-            return result
-        finally:
-            cursor.close()
-            conn.close()
+                """
+            )
+            rows = cur.fetchall()
 
-    def update_status(self, driver_id: int, status: str) -> bool:
-        conn = self._get_connection()
-        cursor = self._get_cursor(conn)
-        try:
-            cursor.execute(
-                "UPDATE drivers SET status = %s WHERE driver_id = %s",
-                (status, driver_id))
-            success = cursor.rowcount > 0
-            conn.commit()
-            return success
-        finally:
-            cursor.close()
-            conn.close()
+        return [
+            (row['driver_id'], row['name'], pickle.loads(bytes(row['biometric_embedding'])))
+            for row in rows
+        ]
 
     def exists(self, name: str) -> bool:
+        """Return True if an active driver with this name already exists."""
         return self.get_by_name(name) is not None

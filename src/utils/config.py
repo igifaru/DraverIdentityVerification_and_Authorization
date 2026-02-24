@@ -1,6 +1,15 @@
 """
-Configuration Management Module
-Loads and manages system configuration from YAML and environment variables
+Configuration Management
+Loads and validates application configuration from YAML and environment variables.
+
+Priority (highest first):
+  1. Environment variables  (DATABASE_URL, DB_HOST, SMTP_EMAIL, …)
+  2. config/config.yaml
+  3. Hardcoded defaults in each property
+
+Usage:
+    from utils.config import config   # singleton
+    threshold = config.verification_threshold
 """
 
 import os
@@ -127,10 +136,6 @@ class Config:
         password = os.getenv('DB_PASSWORD', self.get('database.password', 'postgres'))
         return f"postgresql://{user}:{password}@{host}:{port}/{name}"
 
-    @property
-    def database_path(self) -> str:
-        """DEPRECATED – kept for backward compat; returns None for PostgreSQL."""
-        return None
     
     @property
     def log_path(self) -> str:
@@ -225,11 +230,14 @@ class Config:
 config = Config()
 
 
-if __name__ == "__main__":
-    # Test configuration loading
-    print("Testing configuration loading...")
-    print(f"Verification threshold: {config.verification_threshold}")
-    print(f"Camera resolution: {config.camera_resolution}")
-    print(f"Database path: {config.database_path}")
-    print(f"Debug mode: {config.debug_mode}")
-    print(f"\nValidation: {'PASSED' if config.validate() else 'FAILED'}")
+# ---------------------------------------------------------------------------
+# Quick self-test
+# ---------------------------------------------------------------------------
+
+if __name__ == '__main__':
+    print("Loading configuration …")
+    print(f"  database_url         : {config.database_url}")
+    print(f"  verification_threshold: {config.verification_threshold}")
+    print(f"  camera_resolution    : {config.camera_resolution}")
+    print(f"  debug_mode           : {config.debug_mode}")
+    print(f"  Validation           : {'PASSED' if config.validate() else 'FAILED'}")

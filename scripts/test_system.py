@@ -25,8 +25,8 @@ def test_configuration():
     print("TESTING CONFIGURATION")
     print("="*60)
     
-    print(f"✓ Config loaded successfully")
-    print(f"  Database path: {config.database_path}")
+    print(f"Config loaded successfully")
+    print(f"  Database URL: {config.database_url}")
     print(f"  Log path: {config.log_path}")
     print(f"  Similarity threshold: {config.verification_threshold}")
     print(f"  Camera resolution: {config.camera_resolution}")

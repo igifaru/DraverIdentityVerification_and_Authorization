@@ -1,22 +1,62 @@
 # AI-Based Driver Identity Verification and Authorization System
 
-A real-time academic prototype for biometric driver authentication using facial recognition, liveness detection, and automated alerting.
+A real-time biometric driver authentication system using facial recognition, liveness detection, and automated alerting — built with Python, Flask, and PostgreSQL.
 
-## 🎯 Overview
+---
 
-This system demonstrates a complete biometric authentication pipeline suitable for academic research and experimental evaluation. It captures live facial images, verifies identity against enrolled drivers using FaceNet embeddings, performs liveness detection to prevent spoofing, and triggers automated alerts for unauthorized access attempts.
+## Technology Stack
 
-## ✨ Key Features
+### Backend
+| Technology | Purpose |
+|---|---|
+| **Python 3.11** | Core language |
+| **Flask 3.0** | Web framework & REST API |
+| **PostgreSQL** | Production database (relational, ACID-compliant) |
+| **psycopg2** | PostgreSQL adapter for Python |
+| **TensorFlow / Keras** | Deep learning runtime |
+| **DeepFace** | FaceNet embedding generation (128-dim vectors) |
+| **MTCNN** | Face detection (Multi-task Cascaded Convolutional Networks) |
+| **MediaPipe** | Facial landmark detection for liveness (EAR blink detection) |
+| **OpenCV** | Image/video capture, preprocessing, and rendering |
+| **NumPy / SciPy** | Numerical computation & cosine similarity |
+| **Gunicorn** | Production WSGI server |
 
-- **Real-Time Biometric Verification**: Live camera-based facial recognition using FaceNet (128-dimensional embeddings)
-- **Liveness Detection**: Eye Aspect Ratio (EAR) based blink detection to prevent photo-based attacks
-- **Automated Alerting**: Email notifications with captured images for unauthorized access attempts
-- **Performance Logging**: CSV-based logging with detailed metrics (similarity scores, processing times)
-- **Threshold Tuning**: Configurable similarity threshold to balance security and usability
-- **Privacy-First Design**: Local-only data storage, no cloud transmission
-- **Sub-1.5s Latency**: Optimized for real-time performance on standard laptops
+### Frontend
+| Technology | Purpose |
+|---|---|
+| **HTML5** | Page structure & semantic layout |
+| **CSS3** (Vanilla) | Dark-theme UI with glassmorphism, gradients, and micro-animations |
+| **JavaScript** (Vanilla ES6+) | Real-time dashboard interactions, enrollment workflow, camera capture |
+| **Jinja2** | Server-side templating (Flask) |
+| **Font Awesome** | Icon library |
+| **Chart.js** | Dashboard analytics charts |
 
-## 🏗️ System Architecture
+### Infrastructure
+| Technology | Purpose |
+|---|---|
+| **PostgreSQL 15+** | Primary data store (drivers, verification logs, audit logs) |
+| **YAML** | Application configuration (`config/config.yaml`) |
+| **python-dotenv** | Environment variable management for secrets |
+| **SMTP (Gmail)** | Email alerting for unauthorized access |
+
+---
+
+## Key Features
+
+- **Real-Time Biometric Verification** — Live camera-based facial recognition using FaceNet (128-dimensional embeddings)
+- **Multi-Sample Enrollment** — 5-frame averaged biometric signature for noise reduction
+- **Driver Categories (A–E)** — Categorize drivers by vehicle type (motorcycles, cars, trucks, buses, special vehicles)
+- **Liveness Detection** — Eye Aspect Ratio (EAR) blink detection to prevent photo-based spoofing
+- **Web Dashboard** — Full-featured admin interface for enrollment, monitoring, and log review
+- **Automated Email Alerts** — Notifications with captured images for unauthorized access attempts
+- **Performance Logging** — Detailed metrics (similarity scores, processing times, authorization rates)
+- **Configurable Thresholds** — Tune similarity threshold to balance security vs. usability
+- **Audit Trail** — Complete audit logging of all system events
+- **Sub-1.5s Latency** — Optimized for real-time performance on standard hardware
+
+---
+
+## System Architecture
 
 ```
 ┌─────────────────┐
@@ -25,22 +65,22 @@ This system demonstrates a complete biometric authentication pipeline suitable f
          │
          ▼
 ┌─────────────────┐
-│ Face Detection  │ (MTCNN)
+│ Face Detection  │  (MTCNN)
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ Liveness Check  │ (EAR Blink Detection)
+│ Liveness Check  │  (EAR Blink Detection via MediaPipe)
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ FaceNet Embed.  │ (128-dim vector)
+│ FaceNet Embed.  │  (128-dim vector via DeepFace)
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ Similarity      │ (Cosine Similarity)
+│ Cosine Simil.   │  (Match against PostgreSQL stored embeddings)
 │ Comparison      │
 └────────┬────────┘
          │
@@ -58,283 +98,260 @@ This system demonstrates a complete biometric authentication pipeline suitable f
          └──────────────┘
 ```
 
-## 📋 Requirements
+---
+
+## Requirements
 
 ### Hardware
-- Webcam or mobile camera (USB or built-in)
+- Webcam (USB or built-in)
 - Standard laptop/desktop (CPU-based, no GPU required)
-- Minimum 4GB RAM recommended
+- Minimum 4 GB RAM
 
 ### Software
-- Python 3.9 or higher
-- Windows/Linux/macOS
+- Python 3.9+
+- PostgreSQL 13+ (local or remote)
+- Windows / Linux / macOS
 
-## 🚀 Quick Start
+---
 
-### 1. Installation
+## Quick Start
+
+### 1. Install Dependencies
 
 ```bash
-# Clone or navigate to the project directory
 cd DraverIdentityVerification_and_Authorization
 
-# Create virtual environment
 python -m venv venv
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Linux/Mac
 
-# Activate virtual environment
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Configuration
+### 2. Set Up PostgreSQL
 
-Copy the environment template and configure email alerts (optional):
+Install PostgreSQL, then create the application database:
+
+```sql
+-- In psql or pgAdmin:
+CREATE DATABASE draver_db;
+```
+
+Update `config/config.yaml` with your credentials:
+
+```yaml
+database:
+  host: "localhost"
+  port: 5432
+  name: "draver_db"
+  user: "postgres"
+  password: "your_password"
+```
+
+Or set a single environment variable:
+
+```
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/draver_db
+```
+
+### 3. (Optional) Migrate Existing SQLite Data
+
+If upgrading from the SQLite version:
 
 ```bash
-# Copy template
+python migrate_to_postgres.py
+```
+
+### 4. Run the Application
+
+```bash
+python run.py
+```
+
+Open your browser to: **http://localhost:5000**
+
+### 5. Configure Email Alerts (Optional)
+
+```bash
 copy config\.env.example config\.env
-
-# Edit config\.env with your SMTP credentials
-# For Gmail, use an app-specific password:
-# https://support.google.com/accounts/answer/185833
+# Edit config\.env with your Gmail SMTP credentials
 ```
 
-Edit `config/config.yaml` to adjust system parameters:
-- `verification.similarity_threshold`: Adjust between 0.0-1.0 (default: 0.6)
-- `camera.device_id`: Change if using external camera (default: 0)
-- `camera.resolution_width/height`: Adjust camera resolution
+---
 
-### 3. Test System
-
-```bash
-# Run all tests
-python scripts/test_system.py --all
-
-# Or test individual components
-python scripts/test_system.py --camera
-python scripts/test_system.py --face-detection
-python scripts/test_system.py --benchmark
-```
-
-### 4. Enroll Drivers
-
-```bash
-# Enroll a driver (interactive mode with camera preview)
-python scripts/enroll_driver.py --name "John Doe" --email "john@example.com"
-
-# Non-interactive mode (auto-capture)
-python scripts/enroll_driver.py --name "Jane Smith" --no-interactive
-
-# List enrolled drivers
-python scripts/enroll_driver.py --list
-```
-
-### 5. Run Verification
-
-```bash
-# Start verification with live preview
-python scripts/run_verification.py
-
-# Run without video preview (headless)
-python scripts/run_verification.py --no-preview
-
-# Disable liveness detection (not recommended)
-python scripts/run_verification.py --no-liveness
-
-# Override similarity threshold
-python scripts/run_verification.py --threshold 0.7
-```
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 DraverIdentityVerification_and_Authorization/
 ├── src/
-│   ├── enrollment/          # Driver enrollment module
-│   │   ├── camera_capture.py
-│   │   ├── face_processor.py
-│   │   └── enrollment_manager.py
-│   ├── verification/        # Real-time verification engine
-│   │   ├── video_stream.py
-│   │   ├── liveness_detector.py
-│   │   ├── face_matcher.py
-│   │   └── verification_engine.py
-│   ├── database/            # SQLite database layer
-│   │   ├── db_manager.py
-│   │   └── models.py
-│   ├── alerting/            # Email alerts and logging
-│   │   ├── email_service.py
-│   │   └── logger.py
-│   └── utils/               # Configuration management
-│       └── config.py
-├── scripts/                 # Command-line scripts
-│   ├── enroll_driver.py
-│   ├── run_verification.py
-│   └── test_system.py
-├── config/                  # Configuration files
-│   ├── config.yaml
-│   └── .env.example
-├── data/                    # Data storage
-│   ├── database/            # SQLite database
-│   ├── logs/                # Performance logs (CSV)
-│   └── alerts/              # Captured images
-├── requirements.txt
+│   ├── enrollment/              # Driver enrollment module
+│   │   ├── camera_capture.py    # Webcam interface & frame capture
+│   │   ├── face_processor.py    # Face detection, alignment, embedding generation
+│   │   └── enrollment_manager.py # Enrollment workflow orchestration
+│   ├── verification/            # Real-time verification engine
+│   │   ├── video_stream.py      # Continuous video stream handler
+│   │   ├── liveness_detector.py # EAR-based blink/liveness detection
+│   │   ├── face_matcher.py      # Cosine similarity matching
+│   │   ├── verification_engine.py # Main verification orchestrator
+│   │   └── verification_result_handler.py
+│   ├── database/                # PostgreSQL database layer
+│   │   ├── db_manager.py        # Connection management & table creation
+│   │   ├── models.py            # Driver, VerificationLog, AuditLog dataclasses
+│   │   ├── driver_repository.py # Driver CRUD operations
+│   │   ├── verification_repository.py # Verification log operations
+│   │   └── audit_repository.py  # Audit trail operations
+│   ├── dashboard/               # Flask web dashboard
+│   │   ├── app.py               # Flask app factory
+│   │   ├── routes/
+│   │   │   ├── api_routes.py    # REST API endpoints
+│   │   │   ├── auth_routes.py   # Login / authentication
+│   │   │   └── main_routes.py   # Page routes
+│   │   └── templates/
+│   │       ├── index.html       # Main dashboard (enrollment, monitoring, logs)
+│   │       ├── login.html       # Login page
+│   │       ├── driver.html      # Driver detail page
+│   │       ├── 404.html         # Error pages
+│   │       └── 500.html
+│   ├── alerting/                # Alerting & logging
+│   │   ├── email_service.py     # SMTP email notifications
+│   │   └── logger.py            # CSV performance logger
+│   └── utils/                   # Shared utilities
+│       ├── config.py            # YAML config loader with env var support
+│       └── constants.py         # Application constants
+├── scripts/                     # CLI tools
+│   ├── enroll_driver.py         # Command-line enrollment
+│   ├── run_verification.py      # Command-line verification runner
+│   └── test_system.py           # System component tests & benchmarks
+├── config/
+│   └── config.yaml              # Application configuration
+├── data/
+│   ├── database/                # Legacy SQLite database (if present)
+│   ├── logs/                    # Performance logs (CSV)
+│   └── alerts/                  # Captured alert images
+├── migrate_to_postgres.py       # SQLite → PostgreSQL migration script
+├── run.py                       # Application entry point
+├── requirements.txt             # Python dependencies
 └── README.md
 ```
 
-## 🔧 Configuration Parameters
+---
 
-### Verification Settings
-- `similarity_threshold` (0.6): Minimum similarity for authorization
-  - Higher = More strict (fewer false accepts, more false rejects)
-  - Lower = More lenient (more false accepts, fewer false rejects)
-- `liveness_ear_threshold` (0.25): Eye Aspect Ratio threshold for blink detection
-- `liveness_blink_frames` (3): Minimum consecutive frames for valid blink
-- `max_processing_time_ms` (1500): Target processing time
+## Configuration
 
-### Camera Settings
-- `resolution_width` (640): Camera width in pixels
-- `resolution_height` (480): Camera height in pixels
-- `fps` (30): Target frames per second
-- `device_id` (0): Camera device ID (0 = default)
+All settings live in `config/config.yaml`:
 
-### Logging Settings
-- `save_authorized_images` (false): Save images of authorized drivers
-- `save_unauthorized_images` (true): Save images of unauthorized attempts
-- `max_log_entries` (10000): Maximum log entries before rotation
+### Verification
+| Parameter | Default | Description |
+|---|---|---|
+| `similarity_threshold` | 0.6 | Minimum cosine similarity for authorization (0.0–1.0) |
+| `liveness_ear_threshold` | 0.25 | EAR threshold for blink detection |
+| `liveness_blink_frames` | 3 | Consecutive frames for valid blink |
+| `max_processing_time_ms` | 1500 | Target processing latency |
 
-## 📊 Performance Metrics
+### Camera
+| Parameter | Default | Description |
+|---|---|---|
+| `device_id` | 0 | Camera device index |
+| `resolution_width` | 640 | Capture width (px) |
+| `resolution_height` | 480 | Capture height (px) |
+| `fps` | 30 | Target frame rate |
 
-The system logs the following metrics for each verification attempt:
+### Database
+| Parameter | Type | Description |
+|---|---|---|
+| `host` | string | PostgreSQL host |
+| `port` | int | PostgreSQL port (default: 5432) |
+| `name` | string | Database name |
+| `user` | string | Database user |
+| `password` | string | Database password |
+| `url` | string | Full DSN (overrides individual fields) |
 
-- **Timestamp**: Date and time of verification
-- **Driver ID/Name**: Matched driver (if any)
-- **Similarity Score**: Cosine similarity (0.0-1.0)
-- **Authorization Status**: Authorized/Unauthorized
-- **Liveness Status**: Passed/Failed
-- **Processing Time**: End-to-end latency in milliseconds
+Environment variable `DATABASE_URL` overrides all of the above.
 
-Logs are stored in:
-- **Database**: `data/database/drivers.db` (SQLite)
-- **CSV**: `data/logs/verification_log.csv`
+---
 
-### Viewing Statistics
+## Driver Categories
 
-```python
-from src.alerting.logger import PerformanceLogger
+Drivers are assigned a category during enrollment:
 
-logger = PerformanceLogger()
-logger.print_statistics()
+| Category | Vehicle Type |
+|---|---|
+| **A** | Motorcycles & light vehicles |
+| **B** | Passenger cars (standard) |
+| **C** | Trucks / heavy goods vehicles |
+| **D** | Buses / passenger transport |
+| **E** | Articulated / special vehicles |
+
+---
+
+## Database Schema (PostgreSQL)
+
+```sql
+CREATE TABLE drivers (
+    driver_id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    license_number VARCHAR(100),
+    category VARCHAR(5) DEFAULT 'A',
+    biometric_embedding BYTEA NOT NULL,
+    enrollment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    email VARCHAR(255),
+    status VARCHAR(20) DEFAULT 'active'
+);
+
+CREATE TABLE verification_logs (
+    log_id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    driver_id INTEGER REFERENCES drivers(driver_id),
+    driver_name VARCHAR(255),
+    similarity_score DOUBLE PRECISION,
+    authorized BOOLEAN DEFAULT FALSE,
+    processing_time_ms DOUBLE PRECISION,
+    image_path TEXT,
+    liveness_passed BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE audit_logs (
+    audit_id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    action VARCHAR(255),
+    user_email VARCHAR(255),
+    details TEXT,
+    ip_address VARCHAR(50)
+);
 ```
 
-## 🔐 Security & Privacy
+---
 
-### Data Protection
-- ✅ All biometric data stored locally (no cloud transmission)
-- ✅ SQLite database with file-level permissions
-- ✅ Optional image saving (configurable)
-- ✅ Email credentials stored in gitignored `.env` file
+## Performance Metrics
 
-### Privacy-by-Design
-- Biometric embeddings are one-way (cannot reconstruct original face)
-- Enrollment requires explicit action (no passive collection)
-- Configurable data retention policies
-- Option to anonymize driver identifiers
+Each verification attempt logs:
 
-### Ethical Considerations
-- ⚠️ Obtain informed consent before enrolling individuals
-- ⚠️ Use only for academic/research purposes
-- ⚠️ Comply with local biometric data regulations (GDPR, CCPA, etc.)
-- ⚠️ Implement appropriate access controls in production
+- **Timestamp** — Date and time
+- **Driver ID / Name** — Matched driver (if any)
+- **Similarity Score** — Cosine similarity (0.0–1.0)
+- **Authorization Status** — Authorized / Unauthorized
+- **Liveness Status** — Passed / Failed
+- **Processing Time** — End-to-end latency (ms)
 
-## 🎓 Academic Use
+---
 
-### Suitable For
-- Biometric authentication research
-- Computer vision coursework
-- Security systems prototyping
-- Machine learning demonstrations
-- Privacy-preserving authentication studies
+## Security & Privacy
 
-### Evaluation Metrics
-- **False Acceptance Rate (FAR)**: Unauthorized users accepted
-- **False Rejection Rate (FRR)**: Authorized users rejected
-- **Equal Error Rate (EER)**: Point where FAR = FRR
-- **Processing Latency**: Time from capture to decision
-- **Liveness Detection Accuracy**: Photo attacks blocked
+- All biometric data stored locally (no cloud transmission by default)
+- PostgreSQL with role-based access control
+- Biometric embeddings are one-way (cannot reconstruct the original face)
+- Email credentials stored in gitignored `.env` file
+- Configurable image retention policies
+- Complete audit trail of all system events
 
-### Threshold Tuning
+---
 
-Use the benchmark feature to find optimal threshold:
-
-```python
-from src.verification.face_matcher import FaceMatcher
-
-matcher = FaceMatcher()
-
-# Collect test embeddings with labels
-test_data = [
-    (driver_id, embedding, is_genuine),  # is_genuine = True/False
-    # ... more test cases
-]
-
-results = matcher.benchmark_threshold(test_data)
-print(f"Optimal threshold: {results['optimal_threshold']}")
-print(f"FAR: {results['optimal_far']:.2%}")
-print(f"FRR: {results['optimal_frr']:.2%}")
-```
-
-## 🐛 Troubleshooting
-
-### Camera Not Found
-```
-ERROR: Could not open camera 0
-```
-**Solution**: Try different device IDs in `config/config.yaml`:
-```yaml
-camera:
-  device_id: 1  # or 2, 3, etc.
-```
-
-### Face Detection Fails
-```
-No face detected
-```
-**Solutions**:
-- Ensure good lighting conditions
-- Position face centered in frame
-- Move closer to camera (face should be 5-80% of frame)
-- Check camera is not blocked
-
-### Slow Performance
-```
-Processing time: 2500ms
-```
-**Solutions**:
-- Close other applications
-- Reduce camera resolution in config
-- Disable liveness detection temporarily
-- Check CPU usage
-
-### Email Alerts Not Sending
-```
-WARNING: Email not configured
-```
-**Solutions**:
-- Copy `config/.env.example` to `config/.env`
-- Add Gmail credentials with app-specific password
-- Verify SMTP settings in `config/config.yaml`
-
-## 📚 Technical Details
+## Technical Details
 
 ### Face Detection
 - **Algorithm**: MTCNN (Multi-task Cascaded Convolutional Networks)
 - **Output**: Bounding box, confidence score, 5 facial landmarks
-- **Minimum Confidence**: 0.95 (configurable)
+- **Minimum Confidence**: 0.95
 
 ### Facial Recognition
 - **Model**: FaceNet (Inception ResNet v1)
@@ -343,80 +360,33 @@ WARNING: Email not configured
 - **Framework**: DeepFace
 
 ### Liveness Detection
-- **Method**: Eye Aspect Ratio (EAR) based blink detection
+- **Method**: Eye Aspect Ratio (EAR) blink detection via MediaPipe
 - **Formula**: `EAR = (||p2-p6|| + ||p3-p5||) / (2 * ||p1-p4||)`
-- **Threshold**: 0.25 (eye considered closed if EAR < threshold)
-- **Validation**: Minimum 3 consecutive frames
+- **Threshold**: 0.25 (eye considered closed below this value)
 
-### Database Schema
+---
 
-**Drivers Table**:
-```sql
-CREATE TABLE drivers (
-    driver_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    biometric_embedding BLOB NOT NULL,
-    enrollment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    email TEXT,
-    status TEXT DEFAULT 'active'
-);
-```
+## Troubleshooting
 
-**Verification Logs Table**:
-```sql
-CREATE TABLE verification_logs (
-    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    driver_id INTEGER,
-    driver_name TEXT,
-    similarity_score REAL,
-    authorized BOOLEAN,
-    processing_time_ms REAL,
-    image_path TEXT,
-    liveness_passed BOOLEAN
-);
-```
+| Problem | Solution |
+|---|---|
+| Camera not found | Try different `device_id` values in `config.yaml` |
+| No face detected | Improve lighting, center face, move closer |
+| Slow processing | Reduce camera resolution, close other apps |
+| Email not sending | Check `config/.env` with Gmail app password |
+| PostgreSQL connection refused | Verify PostgreSQL is running: `pg_isready` |
 
-## 🤝 Contributing
+---
 
-This is an academic prototype. For improvements:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## 📄 License
-
-This project is for academic and research purposes only. Not intended for commercial deployment without proper security audits and compliance reviews.
-
-## ⚠️ Disclaimer
-
-This system is a **controlled academic prototype** designed for research and educational purposes. It is **NOT** production-ready and should **NOT** be deployed in real-world security-critical applications without:
-
-- Comprehensive security audits
-- Legal compliance reviews (GDPR, CCPA, biometric data laws)
-- Robust anti-spoofing mechanisms (3D liveness detection)
-- Encrypted data storage
-- Access control and authentication
-- Regular security updates
-
-## 📧 Support
-
-For issues or questions:
-1. Check the troubleshooting section
-2. Run system tests: `python scripts/test_system.py --all`
-3. Review configuration in `config/config.yaml`
-4. Check logs in `data/logs/`
-
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **FaceNet**: Schroff et al., "FaceNet: A Unified Embedding for Face Recognition and Clustering"
 - **MTCNN**: Zhang et al., "Joint Face Detection and Alignment using Multi-task Cascaded Convolutional Networks"
 - **DeepFace**: Serengil & Ozpinar, "LightFace: A Hybrid Deep Face Recognition Framework"
-- **EAR**: Soukupová & Čech, "Real-Time Eye Blink Detection using Facial Landmarks"
+- **EAR**: Soukupova & Cech, "Real-Time Eye Blink Detection using Facial Landmarks"
 
 ---
 
-**Version**: 1.0.0  
-**Last Updated**: February 2026  
-**Status**: Academic Prototype
+**Version**: 2.0.0
+**Last Updated**: February 2026
+**Status**: Academic Prototype — PostgreSQL Edition

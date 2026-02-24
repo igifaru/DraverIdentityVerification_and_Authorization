@@ -54,8 +54,9 @@ data/alerts/captured_images/*
 Thumbs.db
 
 # Diagnostic/Temporary
-camera_test_0.jpg
-diagnose_camera.py
+camera_test_*.jpg
+test_*.py
+!scripts/test_system.py
 
 # Jupyter Notebook
 .ipynb_checkpoints

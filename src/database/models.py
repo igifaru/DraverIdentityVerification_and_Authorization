@@ -15,19 +15,42 @@ class Driver:
     driver_id: Optional[int] = None
     name: str = ""
     license_number: Optional[str] = None
-    category: str = "A"  # Driver category: A, B, C, D, etc.
+    category: str = "A"  # Comma-separated categories e.g. "A,B,C"
     biometric_embedding: Optional[np.ndarray] = None
     enrollment_date: Optional[datetime] = None
     email: Optional[str] = None
     status: str = "active"
-    
+
+    # Category labels for display
+    CATEGORY_LABELS = {
+        'A': 'Motorcycles & light vehicles',
+        'B': 'Passenger cars (standard)',
+        'C': 'Trucks / heavy goods vehicles',
+        'D': 'Buses / passenger transport',
+        'E': 'Articulated / special vehicles',
+    }
+
+    @property
+    def categories(self) -> list:
+        """Return sorted list of category codes, e.g. ['A', 'B', 'C']"""
+        if not self.category:
+            return ['A']
+        return sorted(set(c.strip().upper() for c in self.category.split(',') if c.strip()))
+
+    @property
+    def categories_display(self) -> str:
+        """Return human-readable category string, e.g. 'A, B, C'"""
+        return ', '.join(self.categories)
+
     def to_dict(self) -> dict:
         """Convert driver to dictionary"""
         return {
             'driver_id': self.driver_id,
             'name': self.name,
             'license_number': self.license_number,
-            'category': self.category,
+            'category': self.category,          # raw DB value: "A,B,C"
+            'categories': self.categories,       # parsed list: ["A","B","C"]
+            'categories_display': self.categories_display,
             'enrollment_date': self.enrollment_date.isoformat() if self.enrollment_date else None,
             'email': self.email,
             'status': self.status

@@ -483,6 +483,93 @@
             color: #0a0e17;
         }
 
+        /* Category Checkbox Group */
+        .category-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .category-check {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            user-select: none;
+        }
+
+        .category-check:hover {
+            border-color: var(--primary);
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        .category-check input[type="checkbox"] {
+            display: none;
+        }
+
+        .category-check .check-box {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border);
+            border-radius: 5px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .category-check input[type="checkbox"]:checked~.check-box,
+        .category-check.checked .check-box {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .category-check input[type="checkbox"]:checked~.check-box::after,
+        .category-check.checked .check-box::after {
+            content: '';
+            display: block;
+            width: 5px;
+            height: 9px;
+            border: 2px solid #0a0e17;
+            border-top: none;
+            border-left: none;
+            transform: rotate(45deg) translate(-1px, -1px);
+        }
+
+        .category-check input[type="checkbox"]:checked~.check-label,
+        .category-check.checked .check-label {
+            color: var(--primary);
+        }
+
+        .check-badge {
+            font-weight: 700;
+            font-size: 0.8rem;
+            background: rgba(255, 255, 255, 0.07);
+            border-radius: 5px;
+            padding: 2px 8px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .category-check input[type="checkbox"]:checked~.check-badge,
+        .category-check.checked .check-badge {
+            background: rgba(0, 255, 136, 0.15);
+            color: var(--primary);
+        }
+
+        .check-label {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            flex: 1;
+            transition: color 0.2s;
+        }
+
         /* Audit List */
         .audit-list {
             display: flex;
@@ -706,14 +793,41 @@
                             <input type="text" id="enrollName" class="input-dark" placeholder="Legal Full Name">
                             <input type="text" id="enrollID" class="input-dark" placeholder="Driver License Number">
 
-                            <div class="menu-section-label" style="margin-top: 16px;">Driver Category</div>
-                            <select id="enrollCategory" class="input-dark">
-                                <option value="A">Category A – Motorcycles &amp; light vehicles</option>
-                                <option value="B">Category B – Passenger cars (standard)</option>
-                                <option value="C">Category C – Trucks / heavy goods vehicles</option>
-                                <option value="D">Category D – Buses / passenger transport</option>
-                                <option value="E">Category E – Articulated / special vehicles</option>
-                            </select>
+                            <div class="menu-section-label" style="margin-top: 16px;">Driver Categories <span
+                                    style="color:var(--text-muted);font-weight:400;font-size:0.8rem;">(select all that
+                                    apply)</span></div>
+                            <div class="category-group" id="categoryGroup">
+                                <label class="category-check">
+                                    <input type="checkbox" name="driverCategory" value="A" checked>
+                                    <span class="check-box"></span>
+                                    <span class="check-badge">A</span>
+                                    <span class="check-label">Motorcycles &amp; light vehicles</span>
+                                </label>
+                                <label class="category-check">
+                                    <input type="checkbox" name="driverCategory" value="B">
+                                    <span class="check-box"></span>
+                                    <span class="check-badge">B</span>
+                                    <span class="check-label">Passenger cars (standard)</span>
+                                </label>
+                                <label class="category-check">
+                                    <input type="checkbox" name="driverCategory" value="C">
+                                    <span class="check-box"></span>
+                                    <span class="check-badge">C</span>
+                                    <span class="check-label">Trucks / heavy goods vehicles</span>
+                                </label>
+                                <label class="category-check">
+                                    <input type="checkbox" name="driverCategory" value="D">
+                                    <span class="check-box"></span>
+                                    <span class="check-badge">D</span>
+                                    <span class="check-label">Buses / passenger transport</span>
+                                </label>
+                                <label class="category-check">
+                                    <input type="checkbox" name="driverCategory" value="E">
+                                    <span class="check-box"></span>
+                                    <span class="check-badge">E</span>
+                                    <span class="check-label">Articulated / special vehicles</span>
+                                </label>
+                            </div>
 
                             <div class="menu-section-label" style="margin-top: 20px;">Security Method</div>
                             <div style="display: flex; gap: 10px; margin-bottom: 30px;">
@@ -978,7 +1092,12 @@
                 const res = await fetch('/api/enroll/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, driver_id: id, category: document.getElementById('enrollCategory').value, images: enrollmentSamples })
+                    body: JSON.stringify({
+                        name,
+                        driver_id: id,
+                        categories: [...document.querySelectorAll('#categoryGroup input[name="driverCategory"]:checked')].map(cb => cb.value),
+                        images: enrollmentSamples
+                    })
                 });
                 const data = await res.json();
 
@@ -993,7 +1112,10 @@
                     setTimeout(() => {
                         document.getElementById('enrollName').value = '';
                         document.getElementById('enrollID').value = '';
-                        document.getElementById('enrollCategory').value = 'A';
+                        // Reset categories: uncheck all, re-check A
+                        document.querySelectorAll('#categoryGroup input[name="driverCategory"]').forEach(cb => {
+                            cb.checked = cb.value === 'A';
+                        });
                         document.getElementById('enrollPreview').style.display = 'none';
                         document.getElementById('enrollPlaceholder').style.display = 'block';
                         document.getElementById('captureStatus').style.display = 'none';

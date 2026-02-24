@@ -104,18 +104,28 @@ def enroll_save_driver():
     data = request.json
     name = data.get('name')
     license_number = data.get('driver_id')
-    category = data.get('category', 'A')  # Driver category: A, B, C, D, etc.
-    images_data = data.get('images', []) # Expecting a list of images
-    
-    # Backward compatibility: handle single image if provided
+
+    # Accept an array of categories (multi-select) or fall back to single value
+    raw_categories = data.get('categories', None)
+    if raw_categories is None:
+        # backward-compat: single category field
+        single = data.get('category', 'A')
+        raw_categories = [single]
+
+    valid_codes = {'A', 'B', 'C', 'D', 'E'}
+    selected = sorted(set(c.strip().upper() for c in raw_categories if c.strip().upper() in valid_codes))
+    if not selected:
+        return jsonify({'error': 'At least one valid category (A-E) must be selected.'}), 400
+
+    category = ','.join(selected)  # e.g. "A,B,C"
+
+    images_data = data.get('images', [])
     if not images_data and data.get('image'):
         images_data = [data.get('image')]
-    
+
     if not all([name, license_number, images_data]):
         return jsonify({'error': 'Missing required fields: name, driver_id, and images array'}), 400
-    if category not in ['A', 'B', 'C', 'D', 'E']:
-        return jsonify({'error': 'Invalid category. Must be A, B, C, D, or E.'}), 400
-    
+
     decoded_images = []
     import base64
     import numpy as np

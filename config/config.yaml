@@ -21,7 +21,7 @@ database:
   port: 5432
   name: "draver_db"
   user: "postgres"
-  password: "postgres"
+  password: "newsecurepassword123"
   # Optional: set full DSN directly to override all fields above
   # url: "postgresql://postgres:postgres@localhost:5432/draver_db"
 

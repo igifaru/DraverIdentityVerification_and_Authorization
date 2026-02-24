@@ -43,6 +43,7 @@ def migrate_drivers(sqlite_cur, pg_conn):
     sqlite_cur.execute("SELECT * FROM drivers")
     rows = sqlite_cur.fetchall()
     migrated = 0
+    inserted_ids = set()
 
     for row in rows:
         # Check for new column 'category' (may not exist in old SQLite schema)
@@ -63,6 +64,7 @@ def migrate_drivers(sqlite_cur, pg_conn):
                  enrollment_date, email, status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (driver_id) DO NOTHING
+            RETURNING driver_id
         """, (
             row['driver_id'],
             row['name'],
@@ -73,7 +75,13 @@ def migrate_drivers(sqlite_cur, pg_conn):
             row['email'],
             row['status'],
         ))
-        migrated += 1
+        result = pg_cur.fetchone()
+        if result:
+            inserted_ids.add(result['driver_id'])
+            migrated += 1
+        else:
+            # Row already existed (ON CONFLICT hit) - still track its ID as valid
+            inserted_ids.add(row['driver_id'])
 
     # Reset sequence so next INSERT gets correct ID
     pg_cur.execute("""
@@ -83,17 +91,33 @@ def migrate_drivers(sqlite_cur, pg_conn):
 
     pg_conn.commit()
     pg_cur.close()
-    print(f"  ✅ Drivers migrated: {migrated}")
+    print(f"[OK] Drivers migrated/existing: {migrated}")
+    return inserted_ids
 
 
-def migrate_verification_logs(sqlite_cur, pg_conn):
-    pg_cur = pg_conn.cursor()
+def migrate_verification_logs(sqlite_cur, pg_conn, valid_driver_ids: set):
+    """
+    Migrate verification logs.
+    If a log references a driver_id that was deleted / never migrated,
+    we set driver_id=NULL to preserve the log record without a FK violation.
+    The driver_name column still holds the name for historical reference.
+    """
+    pg_cur = pg_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     sqlite_cur.execute("SELECT * FROM verification_logs")
     rows = sqlite_cur.fetchall()
     migrated = 0
+    nullified = 0
 
     for row in rows:
+        raw_driver_id = row['driver_id']
+        # Nullify driver_id if the referenced driver no longer exists
+        if raw_driver_id is not None and raw_driver_id not in valid_driver_ids:
+            safe_driver_id = None
+            nullified += 1
+        else:
+            safe_driver_id = raw_driver_id
+
         pg_cur.execute("""
             INSERT INTO verification_logs
                 (log_id, timestamp, driver_id, driver_name, similarity_score,
@@ -103,7 +127,7 @@ def migrate_verification_logs(sqlite_cur, pg_conn):
         """, (
             row['log_id'],
             row['timestamp'],
-            row['driver_id'],
+            safe_driver_id,
             row['driver_name'],
             row['similarity_score'],
             bool(row['authorized']),
@@ -120,7 +144,8 @@ def migrate_verification_logs(sqlite_cur, pg_conn):
 
     pg_conn.commit()
     pg_cur.close()
-    print(f"  ✅ Verification logs migrated: {migrated}")
+    print(f"[OK] Verification logs migrated: {migrated} total" +
+          (f" ({nullified} had orphaned driver_id -> set to NULL)" if nullified else ""))
 
 
 def migrate_audit_logs(sqlite_cur, pg_conn):
@@ -131,7 +156,7 @@ def migrate_audit_logs(sqlite_cur, pg_conn):
         sqlite_cur.execute("SELECT * FROM audit_logs")
         rows = sqlite_cur.fetchall()
     except Exception:
-        print("  ⚠️  No audit_logs table found in SQLite – skipping.")
+        print("  [SKIP] No audit_logs table found in SQLite -- skipping.")
         return
 
     migrated = 0
@@ -158,22 +183,22 @@ def migrate_audit_logs(sqlite_cur, pg_conn):
 
     pg_conn.commit()
     pg_cur.close()
-    print(f"  ✅ Audit logs migrated: {migrated}")
+    print(f"[OK] Audit logs migrated: {migrated}")
 
 
 def main():
     if not os.path.exists(SQLITE_PATH):
-        print(f"❌ SQLite database not found at: {SQLITE_PATH}")
+        print(f"[ERROR] SQLite database not found at: {SQLITE_PATH}")
         sys.exit(1)
 
-    print(f"📦 Source SQLite: {SQLITE_PATH}")
-    print(f"🐘 Target PostgreSQL: {config.database_url}\n")
+    print(f"[SOURCE] SQLite: {SQLITE_PATH}")
+    print(f"[TARGET] PostgreSQL: {config.database_url}\n")
 
     # First run _create_tables via DatabaseManager to ensure schema exists
     print("Creating PostgreSQL schema...")
     from database.db_manager import DatabaseManager
     DatabaseManager()  # this triggers _create_tables()
-    print("  ✅ Schema ready\n")
+    print("[OK] Schema ready\n")
 
     sqlite_conn = get_sqlite_conn()
     sqlite_cur = sqlite_conn.cursor()
@@ -181,14 +206,14 @@ def main():
     pg_conn = get_pg_conn()
 
     print("Migrating data...")
-    migrate_drivers(sqlite_cur, pg_conn)
-    migrate_verification_logs(sqlite_cur, pg_conn)
+    valid_driver_ids = migrate_drivers(sqlite_cur, pg_conn)
+    migrate_verification_logs(sqlite_cur, pg_conn, valid_driver_ids)
     migrate_audit_logs(sqlite_cur, pg_conn)
 
     sqlite_conn.close()
     pg_conn.close()
 
-    print("\n🎉 Migration complete! Your PostgreSQL database is ready.")
+    print("\n[DONE] Migration complete! Your PostgreSQL database is ready.")
     print("   You can now run: python run.py")
 
 

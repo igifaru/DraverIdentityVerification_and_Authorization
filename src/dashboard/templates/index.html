@@ -452,6 +452,37 @@
             font-family: inherit;
         }
 
+        select.input-dark {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23ffffff' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 12px;
+            padding-right: 40px;
+            cursor: pointer;
+        }
+
+        select.input-dark:focus {
+            border-color: var(--primary);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.15);
+        }
+
+        select.input-dark option {
+            background: #1a1f2e;
+            color: #e0e0e0;
+            padding: 12px 16px;
+            border: none;
+        }
+
+        select.input-dark option:hover,
+        select.input-dark option:checked {
+            background: var(--primary);
+            color: #0a0e17;
+        }
+
         /* Audit List */
         .audit-list {
             display: flex;
@@ -676,8 +707,7 @@
                             <input type="text" id="enrollID" class="input-dark" placeholder="Driver License Number">
 
                             <div class="menu-section-label" style="margin-top: 16px;">Driver Category</div>
-                            <select id="enrollCategory" class="input-dark"
-                                style="width:100%; padding:12px 16px; margin-bottom:8px; background: rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.95rem;">
+                            <select id="enrollCategory" class="input-dark">
                                 <option value="A">Category A – Motorcycles &amp; light vehicles</option>
                                 <option value="B">Category B – Passenger cars (standard)</option>
                                 <option value="C">Category C – Trucks / heavy goods vehicles</option>

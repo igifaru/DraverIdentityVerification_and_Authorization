@@ -14,6 +14,8 @@ class Driver:
     """Driver model representing an enrolled driver"""
     driver_id: Optional[int] = None
     name: str = ""
+    license_number: Optional[str] = None
+    category: str = "A"  # Driver category: A, B, C, D, etc.
     biometric_embedding: Optional[np.ndarray] = None
     enrollment_date: Optional[datetime] = None
     email: Optional[str] = None
@@ -24,6 +26,8 @@ class Driver:
         return {
             'driver_id': self.driver_id,
             'name': self.name,
+            'license_number': self.license_number,
+            'category': self.category,
             'enrollment_date': self.enrollment_date.isoformat() if self.enrollment_date else None,
             'email': self.email,
             'status': self.status

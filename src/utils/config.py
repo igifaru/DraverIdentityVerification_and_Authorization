@@ -45,10 +45,8 @@ class Config:
     
     def _resolve_paths(self, project_root: Path):
         """Convert relative paths in config to absolute paths"""
-        if 'database' in self._config and 'path' in self._config['database']:
-            db_path = self._config['database']['path']
-            if not os.path.isabs(db_path):
-                self._config['database']['path'] = str(project_root / db_path)
+        # PostgreSQL: no filesystem path to resolve
+        # (log/alert paths still resolved below)
         
         if 'logging' in self._config:
             if 'log_path' in self._config['logging']:
@@ -118,9 +116,21 @@ class Config:
         return self.get('camera.device_id', 0)
     
     @property
+    def database_url(self) -> str:
+        """Build PostgreSQL DSN. Env var DATABASE_URL takes full priority."""
+        if os.getenv('DATABASE_URL'):
+            return os.getenv('DATABASE_URL')
+        host = os.getenv('DB_HOST', self.get('database.host', 'localhost'))
+        port = os.getenv('DB_PORT', str(self.get('database.port', 5432)))
+        name = os.getenv('DB_NAME', self.get('database.name', 'draver_db'))
+        user = os.getenv('DB_USER', self.get('database.user', 'postgres'))
+        password = os.getenv('DB_PASSWORD', self.get('database.password', 'postgres'))
+        return f"postgresql://{user}:{password}@{host}:{port}/{name}"
+
+    @property
     def database_path(self) -> str:
-        """Get database file path"""
-        return self.get('database.path')
+        """DEPRECATED – kept for backward compat; returns None for PostgreSQL."""
+        return None
     
     @property
     def log_path(self) -> str:
@@ -184,9 +194,9 @@ class Config:
         """Validate critical configuration parameters"""
         errors = []
         
-        # Check database path
-        if not self.database_path:
-            errors.append("Database path not configured")
+        # Check database config
+        if not self.database_url:
+            errors.append("Database URL not configured")
         
         # Check camera settings
         if self.camera_device_id < 0:

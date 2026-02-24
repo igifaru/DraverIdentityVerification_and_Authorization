@@ -1,11 +1,11 @@
 verification:
   similarity_threshold: 0.6  # Tunable threshold for face matching (0.0-1.0)
-  enable_liveness: true # Enable liveness for security
+  enable_liveness: false # Disabled for Phase 2: Similarity Testing
   liveness_ear_threshold: 0.25  # Eye Aspect Ratio threshold for blink detection
   liveness_blink_frames: 3  # Minimum consecutive frames for blink detection
   max_processing_time_ms: 1500  # Maximum allowed processing time
   confidence_threshold: 0.95  # Minimum confidence for face detection
-  enable_cooldown: true # Enable cooldown to prevent CPU overload
+  enable_cooldown: false # Disabled for Phase 2: Rapid testing
   cooldown_seconds: 2.0 # Wait 2 seconds between verifications
 
 camera:
@@ -15,7 +15,15 @@ camera:
   device_id: 0  # 0 for default camera, change if using external camera
 
 database:
-  path: "data/database/drivers.db"
+  # PostgreSQL connection settings
+  # Override any field with env vars: DATABASE_URL, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+  host: "localhost"
+  port: 5432
+  name: "draver_db"
+  user: "postgres"
+  password: "postgres"
+  # Optional: set full DSN directly to override all fields above
+  # url: "postgresql://postgres:postgres@localhost:5432/draver_db"
 
 email:
   smtp_server: "smtp.gmail.com"

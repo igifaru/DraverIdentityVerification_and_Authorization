@@ -103,15 +103,18 @@ def enroll_save_driver():
     """Process biometrics and save new driver (supports multi-sample)"""
     data = request.json
     name = data.get('name')
-    driver_id_str = data.get('driver_id')
+    license_number = data.get('driver_id')
+    category = data.get('category', 'A')  # Driver category: A, B, C, D, etc.
     images_data = data.get('images', []) # Expecting a list of images
     
     # Backward compatibility: handle single image if provided
     if not images_data and data.get('image'):
         images_data = [data.get('image')]
     
-    if not all([name, driver_id_str, images_data]):
+    if not all([name, license_number, images_data]):
         return jsonify({'error': 'Missing required fields: name, driver_id, and images array'}), 400
+    if category not in ['A', 'B', 'C', 'D', 'E']:
+        return jsonify({'error': 'Invalid category. Must be A, B, C, D, or E.'}), 400
     
     decoded_images = []
     import base64
@@ -137,12 +140,13 @@ def enroll_save_driver():
         return jsonify({'error': 'Failed to decode any images'}), 400
     
     engine = current_app.config['VERIFICATION_ENGINE']
-    success, message = engine.enroll_new_driver(name, driver_id_str, decoded_images)
+    success, message = engine.enroll_new_driver(name, license_number, decoded_images,
+                                                category=category)
     
     if success:
         # Log audit event
         email = session.get('user_email', 'UNKNOWN')
-        engine.db.log_audit("ENROLL_DRIVER", email, f"Enrolled driver: {name} (ID: {driver_id_str})", request.remote_addr)
+        engine.db.log_audit("ENROLL_DRIVER", email, f"Enrolled driver: {name} (License: {license_number})", request.remote_addr)
         return jsonify({'success': True, 'message': message})
     else:
         return jsonify({'error': message}), 500

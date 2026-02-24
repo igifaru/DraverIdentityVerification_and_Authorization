@@ -673,7 +673,17 @@
                         <div>
                             <div class="menu-section-label">Identity Metadata</div>
                             <input type="text" id="enrollName" class="input-dark" placeholder="Legal Full Name">
-                            <input type="text" id="enrollID" class="input-dark" placeholder="Authorized ID Number">
+                            <input type="text" id="enrollID" class="input-dark" placeholder="Driver License Number">
+
+                            <div class="menu-section-label" style="margin-top: 16px;">Driver Category</div>
+                            <select id="enrollCategory" class="input-dark"
+                                style="width:100%; padding:12px 16px; margin-bottom:8px; background: rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.95rem;">
+                                <option value="A">Category A – Motorcycles &amp; light vehicles</option>
+                                <option value="B">Category B – Passenger cars (standard)</option>
+                                <option value="C">Category C – Trucks / heavy goods vehicles</option>
+                                <option value="D">Category D – Buses / passenger transport</option>
+                                <option value="E">Category E – Articulated / special vehicles</option>
+                            </select>
 
                             <div class="menu-section-label" style="margin-top: 20px;">Security Method</div>
                             <div style="display: flex; gap: 10px; margin-bottom: 30px;">
@@ -882,7 +892,7 @@
             const progressBar = document.getElementById('captureProgress');
 
             if (!name || !id) {
-                msg.innerText = "Error: Name and ID are required before enrollment.";
+                msg.innerText = "Error: Name and License Number are required before enrollment.";
                 msg.style.color = "var(--accent-red)";
                 return;
             }
@@ -938,7 +948,7 @@
                 const res = await fetch('/api/enroll/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, driver_id: id, images: enrollmentSamples })
+                    body: JSON.stringify({ name, driver_id: id, category: document.getElementById('enrollCategory').value, images: enrollmentSamples })
                 });
                 const data = await res.json();
 
@@ -953,6 +963,7 @@
                     setTimeout(() => {
                         document.getElementById('enrollName').value = '';
                         document.getElementById('enrollID').value = '';
+                        document.getElementById('enrollCategory').value = 'A';
                         document.getElementById('enrollPreview').style.display = 'none';
                         document.getElementById('enrollPlaceholder').style.display = 'block';
                         document.getElementById('captureStatus').style.display = 'none';

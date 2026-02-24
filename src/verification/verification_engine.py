@@ -343,7 +343,8 @@ class VerificationEngine:
             self.is_running
         )
 
-    def enroll_new_driver(self, name: str, driver_id_str: str, images: list) -> Tuple[bool, str]:
+    def enroll_new_driver(self, name: str, license_number: str, images: list,
+                          category: str = 'A') -> Tuple[bool, str]:
         """Enroll a new driver from a list of provided images (multi-sample)"""
         if not images:
             return False, "No images provided for enrollment"
@@ -376,13 +377,14 @@ class VerificationEngine:
             return False, f"Enrollment failed: {error_msg}"
             
         # Averaging Logic: Create a robust biometric signature from all valid samples
-        # This reduces noise and improves matching consistency
         mean_embedding = np.mean(embeddings, axis=0)
         
         try:
-            self.db.enroll_driver(name, mean_embedding, id_number=driver_id_str)
+            self.db.enroll_driver(name, mean_embedding,
+                                  license_number=license_number,
+                                  category=category)
             # FaceMatcher reads from DB directly, no need to reload
-            return True, f"Successfully enrolled {name} with {len(embeddings)}/5 biometric samples"
+            return True, f"Successfully enrolled {name} (Category {category}) with {len(embeddings)}/5 biometric samples"
         except Exception as e:
             return False, f"Database error: {str(e)}"
 

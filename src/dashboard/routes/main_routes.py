@@ -7,6 +7,8 @@ import cv2
 import time
 from dashboard.routes.auth_routes import login_required
 
+import numpy as np
+
 main_bp = Blueprint('main', __name__)
 
 def generate_video_feed(engine):
@@ -29,7 +31,7 @@ def generate_video_feed(engine):
 
         if frame is None:
             # Create placeholder frame if camera is off
-            frame = cv2.zeros((480, 640, 3), dtype='uint8')
+            frame = np.zeros((480, 640, 3), dtype='uint8')
             cv2.putText(frame, "Camera Standby", (220, 240),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (100, 100, 100), 2)
         

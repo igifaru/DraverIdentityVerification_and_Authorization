@@ -112,6 +112,10 @@ def get_status():
             'liveness_passed': r['liveness_passed'],
         }
 
+    # Include recent log rows so the dashboard table needs no extra round-trip
+    recent = engine.db.get_recent_logs(limit=12)
+    payload['recent_logs'] = [log.to_dict() for log in recent]
+
     return jsonify(payload)
 
 

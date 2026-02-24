@@ -1,609 +1,375 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Draver Control Room - Advanced Identity Verification</title>
+    <title>Draver — Control Room</title>
     <link
-        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <style>
+        /* ================================================================
+           DESIGN TOKENS — Two themes, one accent colour (blue)
+           ================================================================ */
         :root {
-            --primary: #3498db;
-            --secondary: #2ecc71;
-            --accent-red: #e74c3c;
-            --accent-gold: #f1c40f;
-            --bg-deep: #0f1020;
-            --bg-sidebar: #15162b;
-            --glass: rgba(255, 255, 255, 0.03);
-            --glass-strong: rgba(255, 255, 255, 0.07);
-            --border: rgba(255, 255, 255, 0.1);
-            --text-main: #e0e0e0;
-            --text-muted: rgba(255, 255, 255, 0.5);
+            /* Accent — single colour across both themes */
+            --accent: #2563eb;
+            /* blue-600  */
+            --accent-hover: #1d4ed8;
+            /* blue-700  */
+            --accent-subtle: rgba(37, 99, 235, 0.12);
+
+            /* Semantic status colours — used sparingly only for badges */
+            --ok: #16a34a;
+            /* green-700 */
+            --ok-bg: rgba(22, 163, 74, 0.12);
+            --err: #dc2626;
+            /* red-600   */
+            --err-bg: rgba(220, 38, 38, 0.12);
+
+            /* Typography scale */
+            --font-body: 'Inter', system-ui, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
         }
 
-        * {
+        /* ---- Dark theme ---- */
+        [data-theme="dark"] {
+            --bg: #0e1117;
+            --bg-surface: #151b27;
+            --bg-card: #1a2133;
+            --bg-raised: #202b3d;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-mid: rgba(255, 255, 255, 0.14);
+            --text: #f1f5f9;
+            --text-soft: #94a3b8;
+            --text-muted: #64748b;
+            --shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        /* ---- Light theme ---- */
+        [data-theme="light"] {
+            --bg: #f1f5f9;
+            --bg-surface: #e2e8f0;
+            --bg-card: #ffffff;
+            --bg-raised: #f8fafc;
+            --border: rgba(0, 0, 0, 0.08);
+            --border-mid: rgba(0, 0, 0, 0.14);
+            --text: #0f172a;
+            --text-soft: #475569;
+            --text-muted: #94a3b8;
+            --shadow: 0 2px 16px rgba(0, 0, 0, 0.10);
+        }
+
+        /* ================================================================
+           RESET & BASE
+           ================================================================ */
+        *,
+        *::before,
+        *::after {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        html {
+            font-size: 16px;
+        }
+
         body {
-            font-family: 'Roboto', sans-serif;
-            background-color: var(--bg-deep);
-            color: var(--text-main);
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--text);
             display: flex;
             height: 100vh;
             overflow: hidden;
+            transition: background 0.25s, color 0.25s;
         }
 
-        /* Sidebar Design */
+        /* ================================================================
+           SCROLLBAR (dark / light adaptive)
+           ================================================================ */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-mid);
+            border-radius: 3px;
+        }
+
+        /* ================================================================
+           SIDEBAR
+           ================================================================ */
         .sidebar {
-            width: 280px;
-            background-color: var(--bg-sidebar);
+            width: 240px;
+            flex-shrink: 0;
+            background: var(--bg-surface);
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
             z-index: 100;
+            transition: background 0.25s;
         }
 
         .sidebar-header {
-            padding: 40px 30px;
-            text-align: left;
+            padding: 28px 24px 20px;
         }
 
         .brand {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 1.5rem;
-            font-weight: 700;
-            letter-spacing: 4px;
-            color: var(--primary);
+            font-family: var(--font-mono);
+            font-size: 1.15rem;
+            font-weight: 600;
+            letter-spacing: 6px;
+            color: var(--accent);
             text-transform: uppercase;
-        }
-
-        .brand span {
-            color: #fff;
-        }
-
-        .menu-section {
-            flex-grow: 1;
-            padding: 0 15px;
-        }
-
-        .menu-section-label {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: var(--text-muted);
-            margin-bottom: 15px;
-            padding-left: 15px;
-        }
-
-        .menu-item {
-            padding: 14px 20px;
-            margin-bottom: 5px;
-            cursor: pointer;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .menu-item i {
-            font-size: 1.1rem;
-            width: 24px;
-            text-align: center;
-        }
-
-        .menu-item:hover {
-            color: #fff;
-            background: var(--glass);
-        }
-
-        .menu-item.active {
-            background: linear-gradient(90deg, rgba(52, 152, 219, 0.15), transparent);
-            color: var(--primary);
-            border-left: 3px solid var(--primary);
-        }
-
-        .sidebar-footer {
-            padding: 30px;
-            border-top: 1px solid var(--border);
-            background: rgba(0, 0, 0, 0.2);
-        }
-
-        .sys-info-pill {
-            background: var(--glass-strong);
-            padding: 12px;
-            border-radius: 10px;
-            font-size: 0.75rem;
-        }
-
-        /* Main Content Layout */
-        .main-stage {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            position: relative;
-        }
-
-        .top-bar {
-            height: 80px;
-            padding: 0 40px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid var(--border);
-            backdrop-filter: blur(10px);
-            background: rgba(15, 16, 32, 0.8);
-            position: sticky;
-            top: 0;
-            z-index: 90;
-        }
-
-        .breadcrumb {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.9rem;
-            letter-spacing: 1px;
-            color: #fff;
-        }
-
-        .time-display {
-            font-family: 'Orbitron', sans-serif;
-            font-weight: 700;
-            color: var(--primary);
-            background: var(--glass);
-            padding: 8px 15px;
-            border-radius: 8px;
-            font-size: 1rem;
-        }
-
-        .user-actions {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .btn-logout {
-            color: var(--accent-red);
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 10px 18px;
-            border: 1px solid rgba(231, 76, 60, 0.2);
-            border-radius: 8px;
-            transition: all 0.3s;
-        }
-
-        .btn-logout:hover {
-            background: rgba(231, 76, 60, 0.1);
-            border-color: var(--accent-red);
-        }
-
-        /* UI Components */
-        .content-container {
-            padding: 40px;
-            max-width: 1400px;
-            margin: 0 auto;
-            width: 100%;
-        }
-
-        .dashboard-header {
-            margin-bottom: 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-        }
-
-        .dashboard-header h1 {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 1.8rem;
-            margin-bottom: 5px;
-        }
-
-        .dashboard-header p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-
-        .metric-card {
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 25px;
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.3s;
-        }
-
-        .metric-card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .metric-icon {
-            position: absolute;
-            right: -10px;
-            bottom: -10px;
-            font-size: 4rem;
-            opacity: 0.05;
-            color: #fff;
-        }
-
-        .metric-label {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            letter-spacing: 1px;
-        }
-
-        .metric-value {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 2rem;
-            font-weight: 700;
-            margin-top: 10px;
-        }
-
-        .metric-change {
-            font-size: 0.75rem;
-            margin-top: 8px;
-            font-weight: 500;
-        }
-
-        .up {
-            color: var(--secondary);
-        }
-
-        .down {
-            color: var(--accent-red);
-        }
-
-        .main-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 30px;
-        }
-
-        /* Glass Panel */
-        .glass-panel {
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 30px;
-            backdrop-filter: blur(10px);
-        }
-
-        .panel-title {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-        }
-
-        .panel-title h3 {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 1rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        .video-container {
-            width: 100%;
-            aspect-ratio: 16/9;
-            background: #000;
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-            position: relative;
-        }
-
-        .video-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-
-        .video-overlay {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            display: flex;
-            gap: 10px;
-        }
-
-        /* Status Badge */
-        .badge {
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 0.7rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .badge-success {
-            background: rgba(46, 204, 113, 0.2);
-            color: var(--secondary);
-            border: 1px solid rgba(46, 204, 113, 0.3);
-        }
-
-        .badge-danger {
-            background: rgba(231, 76, 60, 0.2);
-            color: var(--accent-red);
-            border: 1px solid rgba(231, 76, 60, 0.3);
-        }
-
-        .badge-blue {
-            background: rgba(52, 152, 219, 0.2);
-            color: var(--primary);
-            border: 1px solid rgba(52, 152, 219, 0.3);
-        }
-
-        /* Tables & Lists */
-        .modern-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .modern-table th {
-            text-align: left;
-            padding: 15px;
-            font-size: 0.7rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .modern-table td {
-            padding: 18px 15px;
-            font-size: 0.9rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
-        }
-
-        .modern-table tr:hover {
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        .avatar-small {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            background: var(--glass-strong);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.8rem;
-        }
-
-        /* Buttons */
-        .btn-glow {
-            padding: 10px 20px;
-            border-radius: 10px;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.75rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s;
-            border: 1px solid transparent;
-            text-transform: uppercase;
-        }
-
-        .btn-start {
-            background: var(--secondary);
-            color: #fff;
-            box-shadow: 0 0 15px rgba(46, 204, 113, 0.3);
-        }
-
-        .btn-stop {
-            background: var(--accent-red);
-            color: #fff;
-            box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
-        }
-
-        .btn-outline {
-            background: transparent;
-            border: 1px solid var(--primary);
-            color: var(--primary);
-        }
-
-        /* Enrollment */
-        .enroll-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 40px;
-        }
-
-        .capture-frame {
-            width: 100%;
-            aspect-ratio: 4/3;
-            background: rgba(0, 0, 0, 0.5);
-            border: 2px dashed var(--border);
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .input-dark {
-            width: 100%;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 15px;
-            color: #fff;
-            margin-bottom: 20px;
-            font-family: inherit;
-        }
-
-        select.input-dark {
-            appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23ffffff' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 16px center;
-            background-size: 12px;
-            padding-right: 40px;
-            cursor: pointer;
-        }
-
-        select.input-dark:focus {
-            border-color: var(--primary);
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.15);
-        }
-
-        select.input-dark option {
-            background: #1a1f2e;
-            color: #e0e0e0;
-            padding: 12px 16px;
-            border: none;
-        }
-
-        select.input-dark option:hover,
-        select.input-dark option:checked {
-            background: var(--primary);
-            color: #0a0e17;
-        }
-
-        /* Category Checkbox Group */
-        .category-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-
-        .category-check {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px 14px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            cursor: pointer;
-            transition: border-color 0.2s, background 0.2s;
             user-select: none;
         }
 
-        .category-check:hover {
-            border-color: var(--primary);
-            background: rgba(0, 255, 136, 0.05);
+        .brand em {
+            color: var(--text);
+            font-style: normal;
         }
 
-        .category-check input[type="checkbox"] {
-            display: none;
+        nav.sidebar-nav {
+            flex: 1;
+            padding: 0 12px;
+            overflow-y: auto;
         }
 
-        .category-check .check-box {
+        .nav-section-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            padding: 18px 12px 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 14px;
+            border-radius: 10px;
+            margin-bottom: 2px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-soft);
+            transition: background 0.15s, color 0.15s;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .nav-item i {
             width: 18px;
-            height: 18px;
-            border: 2px solid var(--border);
-            border-radius: 5px;
+            text-align: center;
+            font-size: 0.95rem;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-raised);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: var(--accent-subtle);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .sidebar-footer {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .node-pill {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        .node-pill-label {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .node-pill-value {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-soft);
+            word-break: break-all;
+        }
+
+        /* ================================================================
+           TOP BAR
+           ================================================================ */
+        .top-bar {
+            height: 64px;
+            padding: 0 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-surface);
+            position: sticky;
+            top: 0;
+            z-index: 90;
+            transition: background 0.25s;
+        }
+
+        .page-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-soft);
+        }
+
+        .top-bar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Live clock */
+        .clock {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-soft);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 8px;
+        }
+
+        /* System status chip */
+        .sys-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-soft);
+            transition: all 0.3s;
+            user-select: none;
+        }
+
+        .sys-chip .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--text-muted);
             flex-shrink: 0;
+        }
+
+        .sys-chip.running {
+            color: var(--ok);
+            background: var(--ok-bg);
+            border-color: rgba(22, 163, 74, 0.25);
+        }
+
+        .sys-chip.running .dot {
+            background: var(--ok);
+            box-shadow: 0 0 6px var(--ok);
+        }
+
+        .sys-chip.stopped {
+            color: var(--text-muted);
+        }
+
+        /* Theme toggle */
+        .btn-theme {
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-soft);
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.2s, border-color 0.2s;
+            font-size: 0.9rem;
+            transition: background 0.15s, color 0.15s;
         }
 
-        .category-check input[type="checkbox"]:checked~.check-box,
-        .category-check.checked .check-box {
-            background: var(--primary);
-            border-color: var(--primary);
+        .btn-theme:hover {
+            background: var(--bg-raised);
+            color: var(--text);
         }
 
-        .category-check input[type="checkbox"]:checked~.check-box::after,
-        .category-check.checked .check-box::after {
-            content: '';
-            display: block;
-            width: 5px;
-            height: 9px;
-            border: 2px solid #0a0e17;
-            border-top: none;
-            border-left: none;
-            transform: rotate(45deg) translate(-1px, -1px);
+        /* Sign out */
+        .btn-signout {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 7px 14px;
+            border-radius: 9px;
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            background: var(--err-bg);
+            color: var(--err);
+            text-decoration: none;
+            transition: all 0.2s;
         }
 
-        .category-check input[type="checkbox"]:checked~.check-label,
-        .category-check.checked .check-label {
-            color: var(--primary);
+        .btn-signout:hover {
+            border-color: var(--err);
+            background: rgba(220, 38, 38, 0.2);
         }
 
-        .check-badge {
-            font-weight: 700;
-            font-size: 0.8rem;
-            background: rgba(255, 255, 255, 0.07);
-            border-radius: 5px;
-            padding: 2px 8px;
-            color: var(--text-muted);
-            flex-shrink: 0;
-        }
-
-        .category-check input[type="checkbox"]:checked~.check-badge,
-        .category-check.checked .check-badge {
-            background: rgba(0, 255, 136, 0.15);
-            color: var(--primary);
-        }
-
-        .check-label {
-            font-size: 0.88rem;
-            color: var(--text-muted);
+        /* ================================================================
+           MAIN STAGE & SCROLL AREA
+           ================================================================ */
+        .main-stage {
             flex: 1;
-            transition: color 0.2s;
-        }
-
-        /* Audit List */
-        .audit-list {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            overflow: hidden;
         }
 
-        .audit-item {
-            background: rgba(255, 255, 255, 0.02);
-            padding: 15px;
-            border-radius: 12px;
-            border-left: 3px solid var(--primary);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px 32px;
         }
 
-        .audit-action {
-            font-weight: 700;
-            font-size: 0.85rem;
-            color: #fff;
+        /* ================================================================
+           VIEWS
+           ================================================================ */
+        .view {
+            display: none;
+            animation: fadeUp 0.25s ease-out;
         }
 
-        .audit-meta {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 4px;
+        .view.active {
+            display: block;
         }
 
-        /* Animation */
-        @keyframes fadeIn {
+        @keyframes fadeUp {
             from {
                 opacity: 0;
-                transform: translateY(10px);
+                transform: translateY(8px);
             }
 
             to {
@@ -612,446 +378,1182 @@
             }
         }
 
-        .view {
-            animation: fadeIn 0.4s ease-out;
+        /* ================================================================
+           METRIC CARDS
+           ================================================================ */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 22px 22px 18px;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+
+        .metric-card:hover {
+            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        .metric-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .metric-value {
+            font-family: var(--font-mono);
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .metric-value.danger {
+            color: var(--err);
+        }
+
+        .metric-sub {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        .metric-sub.ok {
+            color: var(--ok);
+        }
+
+        .metric-sub.err {
+            color: var(--err);
+        }
+
+        /* ================================================================
+           PANELS (glass-card equivalent)
+           ================================================================ */
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 24px;
+            transition: background 0.25s;
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .panel-head h3 {
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-soft);
+        }
+
+        /* ================================================================
+           MAIN CONTENT GRID
+           ================================================================ */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        /* ================================================================
+           VIDEO FEED
+           ================================================================ */
+        .video-wrap {
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        .video-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .video-badges {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        /* ================================================================
+           BADGES
+           ================================================================ */
+        .badge {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+
+        .badge-blue {
+            background: var(--accent-subtle);
+            color: var(--accent);
+            border: 1px solid rgba(37, 99, 235, 0.25);
+        }
+
+        .badge-ok {
+            background: var(--ok-bg);
+            color: var(--ok);
+            border: 1px solid rgba(22, 163, 74, 0.25);
+        }
+
+        .badge-err {
+            background: var(--err-bg);
+            color: var(--err);
+            border: 1px solid rgba(220, 38, 38, 0.25);
+        }
+
+        .badge-muted {
+            background: var(--bg-raised);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+
+        /* ================================================================
+           IDENTITY RESULT PANEL
+           ================================================================ */
+        .id-result {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 12px 0 8px;
+        }
+
+        .id-avatar {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            background: var(--bg-raised);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            transition: border-color 0.4s;
+        }
+
+        .id-avatar i {
+            font-size: 2.2rem;
+            color: var(--text-muted);
+        }
+
+        .id-avatar.ok {
+            border-color: var(--ok);
+        }
+
+        .id-avatar.err {
+            border-color: var(--err);
+        }
+
+        .id-name {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .id-status {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .id-status.ok {
+            color: var(--ok);
+        }
+
+        .id-status.err {
+            color: var(--err);
+        }
+
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-soft);
+            margin-bottom: 8px;
+        }
+
+        .score-val {
+            font-family: var(--font-mono);
+            font-weight: 600;
+        }
+
+        .score-track {
+            height: 5px;
+            background: var(--bg-raised);
+            border-radius: 99px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .score-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            border-radius: 99px;
+            transition: width 0.4s ease;
+        }
+
+        /* ================================================================
+           TABLE
+           ================================================================ */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 10px 14px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table td {
+            padding: 14px 14px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-soft);
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .data-table tr:hover td {
+            background: var(--bg-raised);
+        }
+
+        .data-table code {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-soft);
+        }
+
+        .table-empty {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* ================================================================
+           BUTTONS
+           ================================================================ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 9px 18px;
+            border-radius: 9px;
+            font-family: var(--font-body);
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            letter-spacing: 0.3px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        .btn-danger {
+            background: var(--err-bg);
+            color: var(--err);
+            border-color: rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: rgba(220, 38, 38, 0.2);
+            border-color: var(--err);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text-soft);
+            border-color: var(--border-mid);
+        }
+
+        .btn-outline:hover {
+            background: var(--bg-raised);
+            color: var(--text);
+            border-color: var(--border-mid);
+        }
+
+        .btn-outline.active {
+            background: var(--accent-subtle);
+            color: var(--accent);
+            border-color: rgba(37, 99, 235, 0.35);
+        }
+
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        /* ================================================================
+           ENROLLMENT
+           ================================================================ */
+        .enroll-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 36px;
+        }
+
+        .field-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .field-label.mt {
+            margin-top: 20px;
+        }
+
+        .text-input {
+            width: 100%;
+            background: var(--bg-raised);
+            border: 1px solid var(--border-mid);
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: var(--text);
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            margin-bottom: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+
+        .text-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        .text-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Category checkboxes */
+        .cat-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 18px;
+        }
+
+        .cat-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 9px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+            user-select: none;
+        }
+
+        .cat-item:hover {
+            border-color: var(--accent);
+            background: var(--accent-subtle);
+        }
+
+        .cat-item input[type="checkbox"] {
             display: none;
         }
 
-        .view.active {
+        .cat-box {
+            width: 17px;
+            height: 17px;
+            border: 2px solid var(--border-mid);
+            border-radius: 4px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .cat-item input:checked~.cat-box {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .cat-item input:checked~.cat-box::after {
+            content: '';
             display: block;
+            width: 4px;
+            height: 8px;
+            border: 2px solid #fff;
+            border-top: none;
+            border-left: none;
+            transform: rotate(45deg) translate(-1px, -1px);
+        }
+
+        .cat-code {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 4px;
+            background: var(--bg-raised);
+            color: var(--text-muted);
+            flex-shrink: 0;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .cat-item input:checked~.cat-box~.cat-code {
+            background: var(--accent-subtle);
+            color: var(--accent);
+        }
+
+        .cat-name {
+            font-size: 0.82rem;
+            color: var(--text-soft);
+            transition: color 0.15s;
+        }
+
+        .cat-item input:checked~.cat-box~.cat-code~.cat-name {
+            color: var(--text);
+        }
+
+        /* Capture frame */
+        .capture-frame {
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: var(--bg-raised);
+            border: 2px dashed var(--border-mid);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .capture-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .capture-placeholder i {
+            font-size: 2.5rem;
+        }
+
+        .capture-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0%;
+            height: 4px;
+            background: var(--accent);
+            transition: width 0.2s;
+            display: none;
+        }
+
+        .sample-counter {
+            margin-top: 10px;
+            font-size: 0.78rem;
+            color: var(--accent);
+            font-weight: 500;
+            display: none;
+        }
+
+        .enroll-msg {
+            margin-top: 14px;
+            font-size: 0.85rem;
+            text-align: center;
+            min-height: 20px;
+            color: var(--text-soft);
+        }
+
+        .enroll-msg.ok {
+            color: var(--ok);
+        }
+
+        .enroll-msg.err {
+            color: var(--err);
+        }
+
+        /* ================================================================
+           AUDIT LOG
+           ================================================================ */
+        .audit-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .audit-item {
+            background: var(--bg-raised);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 10px;
+            padding: 14px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .audit-item.err {
+            border-left-color: var(--err);
+        }
+
+        .audit-item.ok {
+            border-left-color: var(--ok);
+        }
+
+        .audit-action {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 3px;
+        }
+
+        .audit-meta {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-bottom: 3px;
+        }
+
+        .audit-detail {
+            font-size: 0.78rem;
+            color: var(--text-soft);
+        }
+
+        .audit-time {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+
+        .audit-empty {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* ================================================================
+           PAGE HEADER
+           ================================================================ */
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h1 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 4px;
+        }
+
+        .page-header p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
         }
     </style>
 </head>
 
 <body>
-    <!-- Sidebar -->
+
+    <!-- =================== SIDEBAR =================== -->
     <aside class="sidebar">
         <div class="sidebar-header">
-            <div class="brand">DRA<span>VER</span></div>
+            <div class="brand">DRA<em>VER</em></div>
         </div>
 
-        <nav class="menu-section">
-            <div class="menu-section-label">Main Navigation</div>
-            <div class="menu-item active" onclick="switchView('dashboard')">
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Navigation</div>
+
+            <button class="nav-item active" id="nav-dashboard" onclick="switchView('dashboard')">
                 <i class="fas fa-chart-line"></i>
                 <span>Operations</span>
-            </div>
-            <div class="menu-item" onclick="switchView('enrollment')">
+            </button>
+
+            <button class="nav-item" id="nav-enrollment" onclick="switchView('enrollment')">
                 <i class="fas fa-user-plus"></i>
                 <span>Enrollment</span>
-            </div>
-            <div class="menu-item" onclick="switchView('audit')">
-                <i class="fas fa-shield-alt"></i>
-                <span>Audit Logs</span>
-            </div>
+            </button>
 
-            <div class="menu-section-label" style="margin-top: 30px;">Configuration</div>
-            <div class="menu-item">
-                <i class="fas fa-cog"></i>
-                <span>Parameters</span>
-            </div>
+            <button class="nav-item" id="nav-audit" onclick="switchView('audit')">
+                <i class="fas fa-shield-halved"></i>
+                <span>Audit Logs</span>
+            </button>
         </nav>
 
         <div class="sidebar-footer">
-            <div class="sys-info-pill">
-                <div style="color: var(--primary); font-family: 'Orbitron'; margin-bottom: 5px; font-size: 0.65rem;">
-                    AUTHORIZED NODE</div>
-                <div style="word-break: break-all; opacity: 0.8;">{{ system_id }}</div>
+            <div class="node-pill">
+                <div class="node-pill-label">Authorized Node</div>
+                <div class="node-pill-value">{{ system_id }}</div>
             </div>
         </div>
     </aside>
 
-    <!-- Main Stage -->
+    <!-- =================== MAIN STAGE =================== -->
     <main class="main-stage">
-        <header class="top-bar">
-            <div class="breadcrumb" id="viewTitle">OPERATIONS CENTER</div>
 
-            <div class="user-actions">
-                <div class="time-display" id="clock">00:00:00</div>
-                <div class="status-badge">
-                    <span class="badge badge-success"><i class="fas fa-circle"
-                            style="font-size: 0.5rem; margin-right: 5px;"></i> System Optimal</span>
+        <!-- Top bar -->
+        <header class="top-bar">
+            <div class="page-title" id="viewTitle">Operations Center</div>
+
+            <div class="top-bar-right">
+                <div class="clock" id="clock">00:00:00</div>
+
+                <div class="sys-chip stopped" id="sysChip">
+                    <span class="dot"></span>
+                    <span id="sysChipLabel">System Idle</span>
                 </div>
-                <a href="{{ url_for('auth.logout') }}" class="btn-logout">Sign Out</a>
+
+                <!-- Theme toggle -->
+                <button class="btn-theme" id="btnTheme" title="Toggle light / dark mode" onclick="toggleTheme()">
+                    <i class="fas fa-moon" id="themeIcon"></i>
+                </button>
+
+                <a href="{{ url_for('auth.logout') }}" class="btn-signout">
+                    <i class="fas fa-sign-out-alt"></i> Sign Out
+                </a>
             </div>
         </header>
 
-        <div class="content-container">
+        <!-- Scroll container for all views -->
+        <div class="scroll-area">
 
-            <!-- VIEW: DASHBOARD -->
+            <!-- ========== VIEW: OPERATIONS DASHBOARD ========== -->
             <div id="viewDashboard" class="view active">
+
+                <!-- Metric cards — all values populated by JS from /api/status -->
                 <div class="metrics-grid">
                     <div class="metric-card">
-                        <i class="fas fa-users metric-icon"></i>
-                        <div class="metric-label">Total Validations</div>
-                        <div class="metric-value" id="valTotal">0</div>
-                        <div class="metric-change up"><i class="fas fa-arrow-up"></i> Active Cycle</div>
+                        <div class="metric-label">Today's Scans</div>
+                        <div class="metric-value" id="valTotal">—</div>
+                        <div class="metric-sub" id="subTotal">Awaiting data</div>
                     </div>
                     <div class="metric-card">
-                        <i class="fas fa-check-double metric-icon"></i>
                         <div class="metric-label">Authorized</div>
-                        <div class="metric-value" id="valAuth">0</div>
-                        <div class="metric-change up"><i class="fas fa-shield-check"></i> Secured Access</div>
+                        <div class="metric-value" id="valAuth">—</div>
+                        <div class="metric-sub ok" id="subAuth">Awaiting data</div>
                     </div>
                     <div class="metric-card">
-                        <i class="fas fa-exclamation-triangle metric-icon"></i>
                         <div class="metric-label">Access Denied</div>
-                        <div class="metric-value" id="valUnauth" style="color: var(--accent-red);">0</div>
-                        <div class="metric-change down" id="alertIndicator" style="display: none;"><i
-                                class="fas fa-bolt"></i> Urgent Breach</div>
+                        <div class="metric-value danger" id="valUnauth">—</div>
+                        <div class="metric-sub err" id="subUnauth"></div>
                     </div>
                     <div class="metric-card">
-                        <i class="fas fa-microchip metric-icon"></i>
-                        <div class="metric-label">Processing Latency</div>
-                        <div class="metric-value" id="valLatency">0ms</div>
-                        <div class="metric-change up">Optimized Engine</div>
+                        <div class="metric-label">Avg Latency</div>
+                        <div class="metric-value" id="valLatency">—</div>
+                        <div class="metric-sub" id="subLatency">ms per scan</div>
                     </div>
                 </div>
 
-                <div class="main-grid">
-                    <div class="glass-panel">
-                        <div class="panel-title">
-                            <h3>Real-Time Security Feed</h3>
-                            <div style="display: flex; gap: 10px;">
-                                <button class="btn-glow btn-start" id="btnStart" onclick="toggleSystem(true)">Process
-                                    On</button>
-                                <button class="btn-glow btn-stop" id="btnStop" onclick="toggleSystem(false)"
-                                    style="display: none;">Stop</button>
+                <!-- Video feed + identity result -->
+                <div class="content-grid">
+
+                    <!-- Live feed panel -->
+                    <div class="panel">
+                        <div class="panel-head">
+                            <h3>Security Feed</h3>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-primary" id="btnStart" onclick="toggleSystem(true)">
+                                    <i class="fas fa-play"></i> Start
+                                </button>
+                                <button class="btn btn-danger" id="btnStop" onclick="toggleSystem(false)"
+                                    style="display:none;">
+                                    <i class="fas fa-stop"></i> Stop
+                                </button>
                             </div>
                         </div>
-                        <div class="video-container">
-                            <img src="{{ url_for('main.video_feed') }}" alt="Live Feed">
-                            <div class="video-overlay">
+                        <div class="video-wrap">
+                            <img src="{{ url_for('main.video_feed') }}" alt="Live camera feed">
+                            <div class="video-badges">
                                 <span class="badge badge-blue">NODE: {{ system_id[:8] }}</span>
-                                <span class="badge badge-success">MJPEG 30FPS</span>
+                                <span class="badge badge-muted">MJPEG</span>
                             </div>
                         </div>
                     </div>
 
-                    <div class="glass-panel">
-                        <div class="panel-title">
+                    <!-- Identity result panel -->
+                    <div class="panel">
+                        <div class="panel-head">
                             <h3>Identity Verification</h3>
                         </div>
-                        <div id="latestResult" style="text-align: center; padding: 20px 0;">
-                            <div
-                                style="width: 120px; height: 120px; border-radius: 50%; border: 4px solid var(--border); margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; background: var(--glass);">
-                                <i class="fas fa-user-shield" style="font-size: 3rem; color: var(--text-muted);"></i>
+
+                        <div class="id-result">
+                            <div class="id-avatar" id="idAvatar">
+                                <i class="fas fa-user-shield"></i>
                             </div>
-                            <h2 id="resDriver" style="font-family: 'Orbitron';">Scanning...</h2>
-                            <p id="resStatus" style="color: var(--text-muted); margin-top: 10px;">Waiting for detection
-                            </p>
+                            <div class="id-name" id="idName">Scanning…</div>
+                            <div class="id-status" id="idStatus">Waiting for detection</div>
                         </div>
 
-                        <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px;">
-                            <div
-                                style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.8rem;">
-                                <span>Similarity Score</span>
-                                <span id="resScore">0.00</span>
+                        <div style="margin-top:24px;padding-top:18px;border-top:1px solid var(--border);">
+                            <div class="score-row">
+                                <span>Similarity score</span>
+                                <span class="score-val" id="resScore">—</span>
                             </div>
-                            <div
-                                style="height: 6px; background: var(--glass-strong); border-radius: 3px; overflow: hidden;">
-                                <div id="resBar"
-                                    style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s;">
-                                </div>
+                            <div class="score-track">
+                                <div class="score-bar" id="resBar"></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="glass-panel" style="margin-top: 30px;">
-                    <div class="panel-title">
+                <!-- Transaction History -->
+                <div class="panel">
+                    <div class="panel-head">
                         <h3>Transaction History</h3>
+                        <span class="badge badge-muted" id="logCount">0 records</span>
                     </div>
-                    <table class="modern-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Timestamp</th>
+                                <th>Time</th>
                                 <th>Subject</th>
-                                <th>Match</th>
+                                <th>Score</th>
                                 <th>Status</th>
-                                <th>Engine Speed</th>
+                                <th>Speed</th>
                             </tr>
                         </thead>
-                        <tbody id="logsTbody"></tbody>
+                        <tbody id="logsTbody">
+                            <tr>
+                                <td colspan="5" class="table-empty">No verification records yet.</td>
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
+            <!-- /VIEW: DASHBOARD -->
 
-            <!-- VIEW: ENROLLMENT -->
+            <!-- ========== VIEW: ENROLLMENT ========== -->
             <div id="viewEnrollment" class="view">
-                <div class="dashboard-header">
-                    <div>
-                        <h1>BIOMETRIC ENROLLMENT</h1>
-                        <p>Register new authorized personnel into the secure database.</p>
-                    </div>
+                <div class="page-header">
+                    <h1>Biometric Enrollment</h1>
+                    <p>Register new authorized personnel. The system captures 5 diverse biometric samples automatically.
+                    </p>
                 </div>
 
-                <div class="glass-panel">
+                <div class="panel">
                     <div class="enroll-grid">
+
+                        <!-- Left: form -->
                         <div>
-                            <div class="menu-section-label">Identity Metadata</div>
-                            <input type="text" id="enrollName" class="input-dark" placeholder="Legal Full Name">
-                            <input type="text" id="enrollID" class="input-dark" placeholder="Driver License Number">
+                            <div class="field-label">Full Legal Name</div>
+                            <input type="text" class="text-input" id="enrollName" placeholder="e.g. Jane Smith">
 
-                            <div class="menu-section-label" style="margin-top: 16px;">Driver Categories <span
-                                    style="color:var(--text-muted);font-weight:400;font-size:0.8rem;">(select all that
-                                    apply)</span></div>
-                            <div class="category-group" id="categoryGroup">
-                                <label class="category-check">
+                            <div class="field-label">Driver License Number</div>
+                            <input type="text" class="text-input" id="enrollID" placeholder="e.g. DL-0012345">
+
+                            <div class="field-label mt">
+                                Categories
+                                <span
+                                    style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--text-muted);margin-left:6px;">(select
+                                    all that apply)</span>
+                            </div>
+                            <div class="cat-group" id="categoryGroup">
+                                <label class="cat-item">
                                     <input type="checkbox" name="driverCategory" value="A" checked>
-                                    <span class="check-box"></span>
-                                    <span class="check-badge">A</span>
-                                    <span class="check-label">Motorcycles &amp; light vehicles</span>
+                                    <span class="cat-box"></span>
+                                    <span class="cat-code">A</span>
+                                    <span class="cat-name">Motorcycles &amp; light vehicles</span>
                                 </label>
-                                <label class="category-check">
+                                <label class="cat-item">
                                     <input type="checkbox" name="driverCategory" value="B">
-                                    <span class="check-box"></span>
-                                    <span class="check-badge">B</span>
-                                    <span class="check-label">Passenger cars (standard)</span>
+                                    <span class="cat-box"></span>
+                                    <span class="cat-code">B</span>
+                                    <span class="cat-name">Passenger cars (standard)</span>
                                 </label>
-                                <label class="category-check">
+                                <label class="cat-item">
                                     <input type="checkbox" name="driverCategory" value="C">
-                                    <span class="check-box"></span>
-                                    <span class="check-badge">C</span>
-                                    <span class="check-label">Trucks / heavy goods vehicles</span>
+                                    <span class="cat-box"></span>
+                                    <span class="cat-code">C</span>
+                                    <span class="cat-name">Trucks / heavy goods</span>
                                 </label>
-                                <label class="category-check">
+                                <label class="cat-item">
                                     <input type="checkbox" name="driverCategory" value="D">
-                                    <span class="check-box"></span>
-                                    <span class="check-badge">D</span>
-                                    <span class="check-label">Buses / passenger transport</span>
+                                    <span class="cat-box"></span>
+                                    <span class="cat-code">D</span>
+                                    <span class="cat-name">Buses / passenger transport</span>
                                 </label>
-                                <label class="category-check">
+                                <label class="cat-item">
                                     <input type="checkbox" name="driverCategory" value="E">
-                                    <span class="check-box"></span>
-                                    <span class="check-badge">E</span>
-                                    <span class="check-label">Articulated / special vehicles</span>
+                                    <span class="cat-box"></span>
+                                    <span class="cat-code">E</span>
+                                    <span class="cat-name">Articulated / special vehicles</span>
                                 </label>
                             </div>
 
-                            <div class="menu-section-label" style="margin-top: 20px;">Security Method</div>
-                            <div style="display: flex; gap: 10px; margin-bottom: 30px;">
-                                <button class="btn-glow btn-outline active" style="flex: 1;">Live Capture</button>
-                                <button class="btn-glow btn-outline" style="flex: 1;">Secure Upload</button>
-                            </div>
-
-                            <button class="btn-glow btn-start" id="btnSaveDriver" style="width: 100%; padding: 20px;"
-                                onclick="saveDriver()">Commit to Database</button>
-                            <div id="enrollMsg" style="margin-top: 20px; font-size: 0.9rem; text-align: center;"></div>
+                            <button class="btn btn-primary" id="btnStart2"
+                                style="width:100%;padding:14px;justify-content:center;margin-top:8px;"
+                                onclick="startEnrollmentWorkflow()">
+                                <i class="fas fa-camera"></i> Start Enrollment
+                            </button>
+                            <div class="enroll-msg" id="enrollMsg"></div>
                         </div>
 
-                        <div style="display: flex; flex-direction: column; align-items: center;">
-                            <div class="capture-frame">
-                                <img src="" id="enrollPreview"
-                                    style="width: 100%; height: 100%; object-fit: cover; display: none;">
-                                <div id="enrollPlaceholder" style="text-align: center; color: var(--text-muted);">
-                                    <i class="fas fa-camera" style="font-size: 3rem; margin-bottom: 15px;"></i>
-                                    <p>Ready for Capture</p>
+                        <!-- Right: camera preview -->
+                        <div style="display:flex;flex-direction:column;align-items:center;">
+                            <div class="capture-frame" id="captureFrame">
+                                <img id="enrollPreview" style="width:100%;height:100%;object-fit:cover;display:none;"
+                                    alt="Capture preview">
+                                <div class="capture-placeholder" id="enrollPlaceholder">
+                                    <i class="fas fa-camera"></i>
+                                    <span>Ready for capture</span>
                                 </div>
-                                <!-- Progress Overlay -->
-                                <div id="captureProgress"
-                                    style="position: absolute; bottom: 0; left: 0; width: 0%; height: 6px; background: var(--secondary); transition: width 0.2s; display: none;">
-                                </div>
+                                <div class="capture-progress" id="captureProgress"></div>
                             </div>
-                            <div id="captureStatus"
-                                style="margin-top: 10px; font-size: 0.8rem; color: var(--primary); display: none;">
-                                Captured Sample 0 of 5</div>
-                            <button class="btn-glow btn-outline" id="btnCapture" style="margin-top: 20px; width: 200px;"
-                                onclick="startEnrollmentWorkflow()">Start Enrollment</button>
+                            <div class="sample-counter" id="captureStatus">Sample 0 / 5</div>
                         </div>
                     </div>
                 </div>
             </div>
+            <!-- /VIEW: ENROLLMENT -->
 
-            <!-- VIEW: AUDIT -->
+            <!-- ========== VIEW: AUDIT LOGS ========== -->
             <div id="viewAudit" class="view">
-                <div class="dashboard-header">
-                    <div>
-                        <h1>SYSTEM AUDIT LOGS</h1>
-                        <p>Full traceability of administrative actions and secure events.</p>
-                    </div>
+                <div class="page-header">
+                    <h1>System Audit Logs</h1>
+                    <p>Full traceability of all administrative and security events.</p>
                 </div>
 
-                <div class="glass-panel">
+                <div class="panel">
                     <div class="audit-list" id="auditList">
-                        <!-- Audit items injected here -->
+                        <div class="audit-empty">Loading audit records…</div>
                     </div>
                 </div>
             </div>
+            <!-- /VIEW: AUDIT -->
 
-        </div>
+        </div><!-- /scroll-area -->
     </main>
 
+    <!-- =================== JAVASCRIPT =================== -->
     <script>
-        // Real-time Clock
+        // ------------------------------------------------------------------
+        // Theme toggle
+        // ------------------------------------------------------------------
+        const THEME_KEY = 'draver_theme';
+
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            document.getElementById('themeIcon').className =
+                theme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+            localStorage.setItem(THEME_KEY, theme);
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            applyTheme(current === 'dark' ? 'light' : 'dark');
+        }
+
+        // Restore saved preference on load
+        applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+
+        // ------------------------------------------------------------------
+        // Live clock
+        // ------------------------------------------------------------------
         function startClock() {
-            setInterval(() => {
-                const now = new Date();
-                document.getElementById('clock').innerText = now.toLocaleTimeString();
-            }, 1000);
+            function tick() {
+                document.getElementById('clock').textContent =
+                    new Date().toLocaleTimeString([], { hour12: false });
+            }
+            tick();
+            setInterval(tick, 1000);
         }
 
-        // View Controller
-        function switchView(viewId) {
+        // ------------------------------------------------------------------
+        // View switching
+        // ------------------------------------------------------------------
+        const VIEW_TITLES = {
+            dashboard: 'Operations Center',
+            enrollment: 'Biometric Enrollment',
+            audit: 'Audit Logs',
+        };
+
+        function switchView(id) {
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
-            const activeView = document.getElementById('view' + viewId.charAt(0).toUpperCase() + viewId.slice(1));
-            activeView.classList.add('active');
+            document.getElementById('view' + id.charAt(0).toUpperCase() + id.slice(1))
+                .classList.add('active');
+            document.getElementById('nav-' + id).classList.add('active');
+            document.getElementById('viewTitle').textContent = VIEW_TITLES[id] || id;
 
-            // Highlight menu
-            const items = document.querySelectorAll('.menu-item');
-            items.forEach(item => {
-                if (item.innerText.toLowerCase().includes(viewId.toLowerCase()) ||
-                    (viewId === 'dashboard' && item.innerText.toLowerCase().includes('operations'))) {
-                    item.classList.add('active');
-                }
-            });
-
-            document.getElementById('viewTitle').innerText = viewId.toUpperCase() + " CENTER";
-
-            if (viewId === 'audit') fetchAuditLogs();
+            if (id === 'audit') fetchAuditLogs();
         }
 
-        // Dashboard Data Fetching
+        // ------------------------------------------------------------------
+        // Update system status chip
+        // ------------------------------------------------------------------
+        function setChip(running) {
+            const chip = document.getElementById('sysChip');
+            const label = document.getElementById('sysChipLabel');
+            if (running) {
+                chip.className = 'sys-chip running';
+                label.textContent = 'System Running';
+            } else {
+                chip.className = 'sys-chip stopped';
+                label.textContent = 'System Idle';
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Fetch and render dashboard data — zero hardcoded values
+        // ------------------------------------------------------------------
         async function fetchDashboard() {
             if (!document.getElementById('viewDashboard').classList.contains('active')) return;
 
             try {
                 const res = await fetch('/api/status');
+                if (!res.ok) return;
                 const data = await res.json();
 
-                // Main Stats
-                document.getElementById('valTotal').innerText = data.stats.total_verifications;
-                document.getElementById('valAuth').innerText = data.stats.authorized_count;
-                document.getElementById('valUnauth').innerText = data.stats.unauthorized_count;
-                document.getElementById('valLatency').innerText = data.stats.avg_processing_time_ms.toFixed(0) + 'ms';
+                // ---- Metrics from today's stats -------------------------
+                const s = data.stats || {};
+                const total = s.total ?? 0;
+                const auth = s.authorized ?? 0;
+                const unauth = s.unauthorized ?? 0;
 
-                // Engine Status
-                const btnStart = document.getElementById('btnStart');
-                const btnStop = document.getElementById('btnStop');
-                if (data.system_status === 'active') {
-                    btnStart.style.display = 'none';
-                    btnStop.style.display = 'block';
-                } else {
-                    btnStart.style.display = 'block';
-                    btnStop.style.display = 'none';
+                document.getElementById('valTotal').textContent = total;
+                document.getElementById('valAuth').textContent = auth;
+                document.getElementById('valUnauth').textContent = unauth;
+
+                // Sub-labels: show authorization rate if data exists
+                document.getElementById('subTotal').textContent =
+                    s.date ? `Date: ${s.date}` : 'Today's verifications';
+                document.getElementById('subAuth').textContent =
+                    total > 0 ? `${((auth / total) * 100).toFixed(1)}% auth rate` : 'No data yet';
+                document.getElementById('subUnauth').textContent =
+                    unauth > 0 ? `${unauth} breach${unauth !== 1 ? 'es' : ''} today` : '';
+
+                // ---- Latency from overall stats (separate endpoint) -----
+                // We fetch /api/statistics lazily for the heavy aggregate
+                fetchLatency();
+
+                // ---- Engine state ----------------------------------------
+                const running = data.system_status === 'active';
+                setChip(running);
+                document.getElementById('btnStart').style.display = running ? 'none' : '';
+                document.getElementById('btnStop').style.display = running ? '' : 'none';
+
+                // ---- Latest verification result -------------------------
+                const lv = data.latest_verification;
+                if (lv) {
+                    const avatar = document.getElementById('idAvatar');
+                    const nameEl = document.getElementById('idName');
+                    const statusEl = document.getElementById('idStatus');
+                    const scoreEl = document.getElementById('resScore');
+                    const barEl = document.getElementById('resBar');
+
+                    nameEl.textContent = lv.driver_name || 'Unknown';
+                    scoreEl.textContent = (lv.similarity ?? 0).toFixed(4);
+                    barEl.style.width = ((lv.similarity ?? 0) * 100) + '%';
+
+                    if (lv.authorized) {
+                        statusEl.textContent = 'Access Granted';
+                        statusEl.className = 'id-status ok';
+                        avatar.className = 'id-avatar ok';
+                    } else {
+                        statusEl.textContent = 'Access Denied';
+                        statusEl.className = 'id-status err';
+                        avatar.className = 'id-avatar err';
+                    }
                 }
 
-                // Latest Result
-                if (data.latest_verification) {
-                    const lv = data.latest_verification;
-                    const resDriver = document.getElementById('resDriver');
-                    const resStatus = document.getElementById('resStatus');
-                    const resScore = document.getElementById('resScore');
-                    const resBar = document.getElementById('resBar');
+                // ---- Recent logs table ---------------------------------
+                renderLogsTable(data.recent_logs || []);
 
-                    resDriver.innerText = lv.driver_name;
-                    resStatus.innerText = lv.authorized ? "Access Granted" : "Immobilizer Engaged";
-                    resStatus.style.color = lv.authorized ? "var(--secondary)" : "var(--accent-red)";
-                    resScore.innerText = lv.similarity.toFixed(4);
-                    resBar.style.width = (lv.similarity * 100) + "%";
-                }
-
-                // Logs Table
-                const tbody = document.getElementById('logsTbody');
-                tbody.innerHTML = '';
-                if (data.recent_logs) {
-                    data.recent_logs.slice(0, 10).forEach(log => {
-                        const row = document.createElement('tr');
-                        const statusBadge = log.authorized ?
-                            '<span class="badge badge-success">Authorized</span>' :
-                            '<span class="badge badge-danger">Denied</span>';
-
-                        row.innerHTML = `
-                            <td>${log.timestamp.includes('T') ? log.timestamp.split('T')[1].split('.')[0] : log.timestamp}</td>
-                            <td>
-                                <div style="display: flex; align-items: center; gap: 12px;">
-                                    <div class="avatar-small"><i class="fas fa-user"></i></div>
-                                    <span>${log.driver_name}</span>
-                                </div>
-                            </td>
-                            <td><code>${log.similarity_score.toFixed(3)}</code></td>
-                            <td>${statusBadge}</td>
-                            <td>${log.processing_time_ms.toFixed(0)} ms</td>
-                        `;
-                        tbody.appendChild(row);
-                    });
-                }
-
-            } catch (e) { console.error("Update fail", e); }
+            } catch (err) {
+                console.error('[fetchDashboard]', err);
+            }
         }
 
-        // Audit Logs Fetching
+        let latencyFetched = false;
+        async function fetchLatency() {
+            // Avoids hammering the aggregate endpoint every 2 s
+            if (latencyFetched && Date.now() - fetchLatency._last < 15000) return;
+            fetchLatency._last = Date.now();
+            latencyFetched = true;
+            try {
+                const res = await fetch('/api/statistics');
+                const data = await res.json();
+                const ms = data.avg_processing_time_ms ?? 0;
+                document.getElementById('valLatency').textContent = ms.toFixed(0) + ' ms';
+                document.getElementById('subLatency').textContent =
+                    data.total_verifications
+                        ? `Across ${data.total_verifications} total scan${data.total_verifications !== 1 ? 's' : ''}`
+                        : 'No data yet';
+            } catch (e) { /* non-critical */ }
+        }
+        fetchLatency._last = 0;
+
+        function renderLogsTable(logs) {
+            const tbody = document.getElementById('logsTbody');
+            const countBadge = document.getElementById('logCount');
+
+            if (!logs.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="table-empty">No verification records yet.</td></tr>';
+                countBadge.textContent = '0 records';
+                return;
+            }
+
+            const shown = logs.slice(0, 12);
+            countBadge.textContent = `${shown.length} records`;
+
+            tbody.innerHTML = shown.map(log => {
+                const time = log.timestamp
+                    ? log.timestamp.replace('T', ' ').split('.')[0].split(' ')[1]
+                    : '—';
+                const scoreStr = typeof log.similarity_score === 'number'
+                    ? log.similarity_score.toFixed(3) : '—';
+                const msStr = typeof log.processing_time_ms === 'number'
+                    ? log.processing_time_ms.toFixed(0) + ' ms' : '—';
+                const badge = log.authorized
+                    ? '<span class="badge badge-ok">Authorized</span>'
+                    : '<span class="badge badge-err">Denied</span>';
+                return `<tr>
+                    <td><code>${time}</code></td>
+                    <td>${log.driver_name || 'Unknown'}</td>
+                    <td><code>${scoreStr}</code></td>
+                    <td>${badge}</td>
+                    <td><code>${msStr}</code></td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ------------------------------------------------------------------
+        // Audit logs
+        // ------------------------------------------------------------------
         async function fetchAuditLogs() {
+            const list = document.getElementById('auditList');
+            list.innerHTML = '<div class="audit-empty">Loading…</div>';
             try {
-                const res = await fetch('/api/audit');
+                const res = await fetch('/api/audit?limit=60');
                 const data = await res.json();
-                const list = document.getElementById('auditList');
-                list.innerHTML = '';
 
-                data.forEach(log => {
-                    const item = document.createElement('div');
-                    item.className = 'audit-item';
+                if (!data.length) {
+                    list.innerHTML = '<div class="audit-empty">No audit records found.</div>';
+                    return;
+                }
 
-                    // Action specific colors
-                    if (log.action.includes('FAILURE')) item.style.borderColor = 'var(--accent-red)';
-                    if (log.action.includes('START')) item.style.borderColor = 'var(--secondary)';
+                list.innerHTML = data.map(log => {
+                    const ts = log.timestamp
+                        ? log.timestamp.replace('T', ' ').split('.')[0]
+                        : '—';
+                    let cls = '';
+                    if (log.action && log.action.includes('FAILURE')) cls = 'err';
+                    else if (log.action && (log.action.includes('START') || log.action.includes('ENROLL'))) cls = 'ok';
 
-                    item.innerHTML = `
+                    return `<div class="audit-item ${cls}">
                         <div>
-                            <div class="audit-action">${log.action}</div>
-                            <div class="audit-meta">User: ${log.user_email} • IP: ${log.ip_address}</div>
-                            <div style="font-size: 0.8rem; margin-top: 5px; opacity: 0.8;">${log.details}</div>
+                            <div class="audit-action">${log.action || '—'}</div>
+                            <div class="audit-meta">User: ${log.user_email || '—'} &bull; IP: ${log.ip_address || '—'}</div>
+                            <div class="audit-detail">${log.details || ''}</div>
                         </div>
-                        <div style="font-family: 'Orbitron'; font-size: 0.7rem; color: var(--primary);">
-                            ${log.timestamp.replace('T', ' ').split('.')[0]}
-                        </div>
-                    `;
-                    list.appendChild(item);
-                });
-            } catch (e) { console.error("Audit fail", e); }
+                        <div class="audit-time">${ts}</div>
+                    </div>`;
+                }).join('');
+
+            } catch (err) {
+                list.innerHTML = '<div class="audit-empty">Failed to load audit logs.</div>';
+                console.error('[fetchAuditLogs]', err);
+            }
         }
 
-        // Engine Control
+        // ------------------------------------------------------------------
+        // Engine control
+        // ------------------------------------------------------------------
         async function toggleSystem(start) {
+            const endpoint = start ? '/api/system/start' : '/api/system/stop';
             try {
-                const endpoint = start ? '/api/system/start' : '/api/system/stop';
-                const response = await fetch(endpoint, { method: 'POST' });
-                const data = await response.json();
-                if (data.success) fetchDashboard();
-            } catch (err) { alert("Switch Fail: " + err); }
+                const res = await fetch(endpoint, { method: 'POST' });
+                const data = await res.json();
+                if (data.success || data.message) fetchDashboard();
+            } catch (err) {
+                console.error('[toggleSystem]', err);
+            }
         }
 
-        // Multi-Sample Enrollment Workflow
+        // ------------------------------------------------------------------
+        // Enrollment workflow — multi-sample capture
+        // ------------------------------------------------------------------
         let enrollmentSamples = [];
         const TOTAL_SAMPLES = 5;
 
         async function startEnrollmentWorkflow() {
-            const name = document.getElementById('enrollName').value;
-            const id = document.getElementById('enrollID').value;
+            const name = document.getElementById('enrollName').value.trim();
+            const id = document.getElementById('enrollID').value.trim();
             const msg = document.getElementById('enrollMsg');
-            const btn = document.getElementById('btnCapture');
-            const statusText = document.getElementById('captureStatus');
-            const progressBar = document.getElementById('captureProgress');
+            const btn = document.getElementById('btnStart2');
 
+            // Validate
             if (!name || !id) {
-                msg.innerText = "Error: Name and License Number are required before enrollment.";
-                msg.style.color = "var(--accent-red)";
+                setEnrollMsg('Name and licence number are required.', 'err');
                 return;
             }
 
-            msg.innerText = "Initializing multi-sample biometric capture...";
-            msg.style.color = "#fff";
             btn.disabled = true;
             enrollmentSamples = [];
+            setEnrollMsg('Initializing biometric capture…', '');
 
+            const statusText = document.getElementById('captureStatus');
+            const progressBar = document.getElementById('captureProgress');
             statusText.style.display = 'block';
             progressBar.style.display = 'block';
 
             for (let i = 1; i <= TOTAL_SAMPLES; i++) {
-                statusText.innerText = `Capturing Sample ${i} of ${TOTAL_SAMPLES}...`;
-                progressBar.style.width = `${(i / TOTAL_SAMPLES) * 100}%`;
+                statusText.textContent = `Sample ${i} / ${TOTAL_SAMPLES}`;
+                progressBar.style.width = ((i / TOTAL_SAMPLES) * 100) + '%';
 
                 try {
                     const res = await fetch('/api/enroll/live', { method: 'POST' });
@@ -1059,104 +1561,82 @@
 
                     if (data.image) {
                         enrollmentSamples.push(data.image);
-
-                        // Update preview with the latest capture
                         const preview = document.getElementById('enrollPreview');
-                        preview.src = "data:image/jpeg;base64," + data.image;
+                        preview.src = 'data:image/jpeg;base64,' + data.image;
                         preview.style.display = 'block';
                         document.getElementById('enrollPlaceholder').style.display = 'none';
                     } else {
-                        throw new Error(data.error || "Capture failed");
+                        throw new Error(data.error || 'Capture returned no image');
                     }
                 } catch (e) {
-                    msg.innerText = `Error at sample ${i}: ${e.message}. Please restart.`;
-                    msg.style.color = "var(--accent-red)";
+                    setEnrollMsg(`Capture error at sample ${i}: ${e.message}`, 'err');
                     btn.disabled = false;
+                    await fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
                     return;
                 }
 
-                // Small delay between captures for slight variations
-                await new Promise(r => setTimeout(r, 300));
+                await sleep(300);
             }
 
-            statusText.innerText = "Analyzing biometric samples...";
+            statusText.textContent = 'Processing…';
             await commitEnrollment(name, id);
+            btn.disabled = false;
         }
 
         async function commitEnrollment(name, id) {
-            const msg = document.getElementById('enrollMsg');
-            const btn = document.getElementById('btnCapture');
-            const btnCommit = document.getElementById('btnSaveDriver');
-
+            const categories = [...document.querySelectorAll('#categoryGroup input[name="driverCategory"]:checked')]
+                .map(cb => cb.value);
             try {
                 const res = await fetch('/api/enroll/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        driver_id: id,
-                        categories: [...document.querySelectorAll('#categoryGroup input[name="driverCategory"]:checked')].map(cb => cb.value),
-                        images: enrollmentSamples
-                    })
+                    body: JSON.stringify({ name, driver_id: id, categories, images: enrollmentSamples }),
                 });
                 const data = await res.json();
 
                 if (data.success) {
-                    msg.innerText = data.message;
-                    msg.style.color = "var(--secondary)";
-
-                    // Stop camera after successful enrollment
-                    await fetch('/api/camera/stop', { method: 'POST' });
-
-                    // Reset UI after success
-                    setTimeout(() => {
-                        document.getElementById('enrollName').value = '';
-                        document.getElementById('enrollID').value = '';
-                        // Reset categories: uncheck all, re-check A
-                        document.querySelectorAll('#categoryGroup input[name="driverCategory"]').forEach(cb => {
-                            cb.checked = cb.value === 'A';
-                        });
-                        document.getElementById('enrollPreview').style.display = 'none';
-                        document.getElementById('enrollPlaceholder').style.display = 'block';
-                        document.getElementById('captureStatus').style.display = 'none';
-                        document.getElementById('captureProgress').style.display = 'none';
-                        msg.innerText = '';
-                        btn.disabled = false;
-                    }, 4000);
+                    setEnrollMsg(data.message || 'Driver enrolled successfully.', 'ok');
+                    await fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
+                    setTimeout(resetEnrollForm, 4000);
                 } else {
-                    msg.innerText = "Error: " + data.error;
-                    msg.style.color = "var(--accent-red)";
-                    btn.disabled = false;
-
-                    // Stop camera on error too
-                    await fetch('/api/camera/stop', { method: 'POST' });
+                    setEnrollMsg(data.error || 'Enrollment failed.', 'err');
+                    await fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
                 }
             } catch (e) {
-                msg.innerText = "Fatal: " + e;
-                btn.disabled = false;
-
-                // Stop camera on fatal error
-                await fetch('/api/camera/stop', { method: 'POST' });
+                setEnrollMsg('Network error: ' + e.message, 'err');
+                await fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
             }
         }
 
-        async function captureLive() {
-            // Deprecated in favor of startEnrollmentWorkflow mapping
-            startEnrollmentWorkflow();
+        function setEnrollMsg(text, type) {
+            const el = document.getElementById('enrollMsg');
+            el.textContent = text;
+            el.className = 'enroll-msg' + (type ? ` ${type}` : '');
         }
 
-        async function saveDriver() {
-            // Deprecated: logic pushed into the workflow
-            const msg = document.getElementById('enrollMsg');
-            msg.innerText = "Please use 'Start Enrollment' to begin capture.";
-            msg.style.color = "var(--primary)";
+        function resetEnrollForm() {
+            document.getElementById('enrollName').value = '';
+            document.getElementById('enrollID').value = '';
+            document.querySelectorAll('#categoryGroup input[name="driverCategory"]')
+                .forEach(cb => { cb.checked = cb.value === 'A'; });
+            document.getElementById('enrollPreview').style.display = 'none';
+            document.getElementById('enrollPlaceholder').style.display = '';
+            document.getElementById('captureStatus').style.display = 'none';
+            document.getElementById('captureProgress').style.display = 'none';
+            document.getElementById('captureProgress').style.width = '0%';
+            setEnrollMsg('', '');
         }
 
-        // Init
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        // ------------------------------------------------------------------
+        // Bootstrap
+        // ------------------------------------------------------------------
         startClock();
-        setInterval(fetchDashboard, 2000);
         fetchDashboard();
+        setInterval(fetchDashboard, 3000);
     </script>
+
 </body>
 
 </html>

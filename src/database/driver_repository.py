@@ -71,6 +71,7 @@ class DriverRepository:
             enrollment_date=ts,
             email=row.get('email'),
             status=row['status'],
+            photo_path=row.get('photo_path'),
         )
 
     # ------------------------------------------------------------------
@@ -84,6 +85,7 @@ class DriverRepository:
         email: Optional[str] = None,
         license_number: Optional[str] = None,
         category: str = 'A',
+        photo_path: Optional[str] = None,
     ) -> int:
         """
         Insert a new driver row and return the generated driver_id.
@@ -94,6 +96,7 @@ class DriverRepository:
             email:          Optional contact email.
             license_number: Driving licence number.
             category:       Comma-separated category codes, e.g. "A,B,C".
+            photo_path:     Optional path to the saved enrollment photo on disk.
 
         Returns:
             The new driver_id assigned by PostgreSQL.
@@ -102,11 +105,11 @@ class DriverRepository:
         with self._db() as cur:
             cur.execute(
                 """
-                INSERT INTO drivers (name, license_number, category, biometric_embedding, email)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO drivers (name, license_number, category, biometric_embedding, email, photo_path)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING driver_id
                 """,
-                (name, license_number, category, embedding_blob, email),
+                (name, license_number, category, embedding_blob, email, photo_path),
             )
             return cur.fetchone()['driver_id']
 
@@ -141,6 +144,16 @@ class DriverRepository:
             cur.execute(
                 "SELECT * FROM drivers WHERE name = %s AND status = 'active'",
                 (name,),
+            )
+            row = cur.fetchone()
+        return self._to_driver(row) if row else None
+
+    def get_by_license_number(self, license_number: str) -> Optional[Driver]:
+        """Return the active Driver with the given licence number, or None."""
+        with self._db() as cur:
+            cur.execute(
+                "SELECT * FROM drivers WHERE license_number = %s AND status = 'active'",
+                (license_number,),
             )
             row = cur.fetchone()
         return self._to_driver(row) if row else None

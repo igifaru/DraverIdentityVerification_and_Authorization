@@ -79,18 +79,27 @@ def create_app() -> Flask:
 
 def _init_engine() -> VerificationEngine | None:
     """
-    Instantiate the VerificationEngine.
+    Instantiate and start the VerificationEngine in a background thread.
 
-    The engine is created but NOT started; the dashboard operator must press
-    "Start System" to begin continuous verification.  This keeps the camera
-    free during the login / enrollment workflow.
+    The engine starts in **standby mode** with the camera OFF.  It idles
+    until the camera is turned on externally (e.g. by the enrollment
+    workflow).  This keeps the camera free and avoids unnecessary power
+    consumption when no enrollment or verification is in progress.
 
     Returns:
-        Initialised VerificationEngine, or None if initialisation fails.
+        Initialised (and running) VerificationEngine, or None on failure.
     """
+    import threading
     try:
         engine = VerificationEngine()
-        print("[app] VerificationEngine ready — waiting for manual start.")
+
+        thread = threading.Thread(
+            target=engine.run_continuous_verification,
+            kwargs={'show_preview': False},
+            daemon=True,
+        )
+        thread.start()
+        print("[app] VerificationEngine started automatically in background thread.")
         return engine
     except Exception as exc:
         print(f"[app] VerificationEngine init failed: {exc}")

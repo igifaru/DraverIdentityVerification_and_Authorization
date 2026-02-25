@@ -20,6 +20,7 @@ class Driver:
     enrollment_date: Optional[datetime] = None
     email: Optional[str] = None
     status: str = "active"
+    photo_path: Optional[str] = None
 
     # Category labels for display
     CATEGORY_LABELS = {
@@ -53,7 +54,8 @@ class Driver:
             'categories_display': self.categories_display,
             'enrollment_date': self.enrollment_date.isoformat() if self.enrollment_date else None,
             'email': self.email,
-            'status': self.status
+            'status': self.status,
+            'photo_url': f'/api/driver-photo/{self.driver_id}' if self.photo_path else None,
         }
 
 

@@ -184,17 +184,22 @@ class VerificationEngine:
         return True, result
     
     def log_verification(self, result: dict):
-        """Log verification attempt to database"""
+        """Log verification attempt to database.
+
+        psycopg2 cannot serialize numpy scalar types (numpy.bool_, numpy.float32,
+        numpy.int64, …).  We cast every field to the equivalent native Python type
+        before building the VerificationLog to avoid ProgrammingError at insert time.
+        """
         log = VerificationLog(
-            driver_id=result['driver_id'],
+            driver_id=int(result['driver_id']) if result['driver_id'] is not None else None,
             driver_name=result['driver_name'],
-            similarity_score=result['similarity_score'],
-            authorized=result['authorized'],
-            processing_time_ms=result['processing_time_ms'],
+            similarity_score=float(result['similarity_score']),
+            authorized=bool(result['authorized']),
+            processing_time_ms=float(result['processing_time_ms']),
             image_path=result['image_path'],
-            liveness_passed=result['liveness_passed']
+            liveness_passed=bool(result['liveness_passed']),
         )
-        
+
         self.db.log_verification(log)
     
     def start_camera(self):
@@ -209,24 +214,26 @@ class VerificationEngine:
         return True
 
     def run_continuous_verification(self, show_preview: bool = True, enable_liveness: Optional[bool] = None):
-        """Run continuous verification loop"""
+        """Run continuous verification loop.
+        
+        The camera is NOT started automatically. The engine idles in
+        standby mode until the camera is started externally (e.g. by the
+        enrollment workflow). When the camera is on, the engine processes
+        frames for face verification; when it is off, the loop sleeps.
+        """
         # Resolve configuration
         if enable_liveness is None:
             enable_liveness = self.enable_liveness_check
 
         print("\n" + "="*60)
-        print("STARTING CONTINUOUS VERIFICATION")
+        print("VERIFICATION ENGINE READY (camera OFF — standby)")
         print("="*60)
         print(f"Liveness Detection: {'ENABLED' if enable_liveness else 'DISABLED'}")
         print(f"Cooldown: {'ENABLED' if self.enable_cooldown else 'DISABLED'} ({self.verification_cooldown}s)")
-        print(f"Video Preview: {'ENABLED' if show_preview else 'DISABLED'}")
         print(f"Similarity Threshold: {self.face_matcher.get_threshold()}")
-        print("Press 'q' or ESC to quit")
         print("="*60 + "\n")
         
-        # Start video stream
-        if not self.start_camera():
-            return
+        # NOTE: camera is NOT started here — it stays OFF until enrollment
         
         self.is_running = True
         frame_count = 0
@@ -235,6 +242,11 @@ class VerificationEngine:
         try:
             while self.is_running:
                 try:
+                    # If camera is not running, idle in standby
+                    if not self.video_stream.is_running:
+                        time.sleep(0.5)
+                        continue
+
                     # Read frame
                     frame = self.video_stream.read_frame()
                     
@@ -297,6 +309,7 @@ class VerificationEngine:
                     with self._frame_lock:
                         self.latest_frame = display_frame.copy()
                         if can_verify:
+                            result['result_timestamp'] = time.time()   # lets the dashboard detect new events
                             self.latest_result = result.copy()
                     
                     # Show preview (desktop window)
@@ -332,7 +345,8 @@ class VerificationEngine:
     def stop(self):
         """Stop verification engine"""
         self.is_running = False
-        self.video_stream.stop()
+        if self.video_stream.is_running:
+            self.video_stream.stop()
         cv2.destroyAllWindows()
         print("Verification engine stopped")
     
@@ -379,14 +393,32 @@ class VerificationEngine:
         # Averaging Logic: Create a robust biometric signature from all valid samples
         mean_embedding = np.mean(embeddings, axis=0)
         
+        # ---- Save enrollment portrait photo to disk ----
+        photo_path = None
+        try:
+            from pathlib import Path
+            photo_dir = Path(config.get('logging.alert_image_path', 'data/alert_images')).parent / 'enrollment_photos'
+            photo_dir.mkdir(parents=True, exist_ok=True)
+            safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in name).strip()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{timestamp}_{safe_name}.jpg"
+            filepath = photo_dir / filename
+            # Use the first captured image as the portrait
+            cv2.imwrite(str(filepath), images[0])
+            photo_path = str(filepath)
+            print(f"[enroll] Portrait saved: {photo_path}")
+        except Exception as exc:
+            print(f"[enroll] Warning: could not save portrait photo: {exc}")
+
         try:
             self.db.enroll_driver(name, mean_embedding,
                                   license_number=license_number,
-                                  category=category)
-            # FaceMatcher reads from DB directly, no need to reload
+                                  category=category,
+                                  photo_path=photo_path)
             return True, f"Successfully enrolled {name} (Category {category}) with {len(embeddings)}/5 biometric samples"
         except Exception as e:
             return False, f"Database error: {str(e)}"
+
 
 
 if __name__ == "__main__":

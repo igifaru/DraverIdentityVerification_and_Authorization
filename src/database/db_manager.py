@@ -95,8 +95,22 @@ class DatabaseManager:
                     biometric_embedding BYTEA   NOT NULL,
                     enrollment_date     TIMESTAMP DEFAULT NOW(),
                     email               TEXT,
-                    status              TEXT    DEFAULT 'active'
+                    status              TEXT    DEFAULT 'active',
+                    photo_path          TEXT
                 )
+            """)
+
+            # Ensure photo_path column exists on older databases
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'drivers' AND column_name = 'photo_path'
+                    ) THEN
+                        ALTER TABLE drivers ADD COLUMN photo_path TEXT;
+                    END IF;
+                END $$;
             """)
 
             cur.execute("""
@@ -140,9 +154,10 @@ class DatabaseManager:
         email: Optional[str] = None,
         license_number: Optional[str] = None,
         category: str = 'A',
+        photo_path: Optional[str] = None,
     ) -> int:
         """Enroll a new driver and return the assigned driver_id."""
-        return self.driver_repo.enroll(name, embedding, email, license_number, category)
+        return self.driver_repo.enroll(name, embedding, email, license_number, category, photo_path)
 
     def get_driver(self, driver_id: int) -> Optional[Driver]:
         """Return a Driver by primary key, or None."""
@@ -151,6 +166,10 @@ class DatabaseManager:
     def get_driver_by_name(self, name: str) -> Optional[Driver]:
         """Return the active Driver with the given name, or None."""
         return self.driver_repo.get_by_name(name)
+
+    def get_driver_by_license(self, license_number: str) -> Optional[Driver]:
+        """Return the active Driver with the given licence number, or None."""
+        return self.driver_repo.get_by_license_number(license_number)
 
     def get_all_drivers(self, active_only: bool = True) -> List[Driver]:
         """Return all drivers, optionally filtered to active only."""

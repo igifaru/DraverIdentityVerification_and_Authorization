@@ -1,0 +1,168 @@
+﻿:root {
+    --bg-color: #050505;
+    --text-color: #ffffff;
+    --primary-color: #3498db;
+    --success-color: #2ecc71;
+    --error-color: #e74c3c;
+    --warning-color: #f1c40f;
+    --panel-bg: rgba(20, 20, 25, 0.8);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.header {
+    width: 100%;
+    padding: 20px;
+    text-align: center;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+    position: absolute;
+    top: 0;
+    z-index: 10;
+}
+
+.system-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 4px;
+    color: var(--primary-color);
+    text-transform: uppercase;
+}
+
+.container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+
+.video-wrapper {
+    position: relative;
+    width: 80vh;
+    max-width: 90%;
+    aspect-ratio: 4/3;
+    border: 4px solid #333;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5), 0 0 20px rgba(52, 152, 219, 0.2);
+    margin-bottom: 40px;
+}
+
+.video-feed {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    /* Mirror effect for driver */
+}
+
+.status-container {
+    width: 100%;
+    max-width: 800px;
+    text-align: center;
+    padding: 30px;
+    border-radius: 15px;
+    background-color: var(--panel-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+}
+
+.status-message {
+    font-size: 4rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+    transition: all 0.3s ease;
+}
+
+.instruction-message {
+    font-size: 1.8rem;
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Status Colors */
+.status-neutral {
+    color: var(--text-color);
+}
+
+.status-authorized {
+    color: var(--success-color);
+    text-shadow: 0 0 20px rgba(46, 204, 113, 0.4);
+}
+
+.status-unauthorized {
+    color: var(--error-color);
+    text-shadow: 0 0 20px rgba(231, 76, 60, 0.4);
+}
+
+.status-scanning {
+    color: var(--warning-color);
+    text-shadow: 0 0 20px rgba(241, 196, 15, 0.4);
+}
+
+.scanning-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--primary-color);
+    box-shadow: 0 0 15px var(--primary-color);
+    animation: scan 3s linear infinite;
+    z-index: 5;
+    display: none;
+}
+
+@keyframes scan {
+    0% {
+        top: 0;
+    }
+
+    50% {
+        top: 100%;
+    }
+
+    100% {
+        top: 0;
+    }
+}
+
+.center-guide {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 300px;
+    height: 300px;
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    z-index: 5;
+}
+
+.footer {
+    position: absolute;
+    bottom: 20px;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.8rem;
+}
+    </style>

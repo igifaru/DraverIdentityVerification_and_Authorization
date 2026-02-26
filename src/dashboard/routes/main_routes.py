@@ -92,7 +92,9 @@ def index():
 @main_bp.route('/driver')
 def driver_screen():
     """Render the public driver feedback screen."""
-    return render_template('driver.html', vehicle_plate=config.vehicle_plate)
+    return render_template('driver.html',
+                           vehicle_plate=config.vehicle_plate,
+                           system_id=config.system_id)
 
 
 # ---------------------------------------------------------------------------

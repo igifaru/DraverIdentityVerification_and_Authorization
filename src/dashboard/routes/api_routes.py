@@ -189,12 +189,40 @@ def get_statistics():
     return jsonify(_get_engine().db.get_statistics())
 
 
-@api_bp.route('/audit')
-def get_audit_logs():
-    """Return recent system audit log entries."""
-    limit = request.args.get('limit', default=50, type=int)
-    logs = _get_engine().db.get_audit_logs(limit)
+@api_bp.route('/audit', methods=['GET', 'DELETE'])
+def audit_logs():
+    """GET: return recent audit log entries. DELETE: clear all entries."""
+    engine = _get_engine()
+
+    if request.method == 'DELETE':
+        count = engine.db.clear_audit_logs()
+        engine.db.log_audit(
+            'CLEAR_AUDIT_LOGS', _current_user(),
+            f'Cleared {count} audit log entries',
+            request.remote_addr,
+        )
+        return jsonify({'success': True, 'message': f'Cleared {count} log entries'})
+
+    # GET
+    limit  = request.args.get('limit',  default=100, type=int)
+    action = request.args.get('action', default=None, type=str)
+    logs = engine.db.get_audit_logs(limit, action_filter=action or None)
     return jsonify([log.to_dict() for log in logs])
+
+
+@api_bp.route('/audit/<int:audit_id>', methods=['DELETE'])
+def delete_audit_log(audit_id: int):
+    """Permanently delete a single audit log entry."""
+    engine = _get_engine()
+    deleted = engine.db.delete_audit_log(audit_id)
+    if deleted:
+        engine.db.log_audit(
+            'DELETE_AUDIT_LOG', _current_user(),
+            f'Deleted audit log entry id={audit_id}',
+            request.remote_addr,
+        )
+        return jsonify({'success': True, 'message': f'Log entry {audit_id} deleted'})
+    return jsonify({'error': 'Audit log entry not found'}), 404
 
 
 # ---------------------------------------------------------------------------

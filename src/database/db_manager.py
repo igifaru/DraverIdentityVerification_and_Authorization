@@ -237,9 +237,17 @@ class DatabaseManager:
         """Record an administrative action in the audit log."""
         return self.audit_repo.log_event(action, user_email, details, ip_address)
 
-    def get_audit_logs(self, limit: int = 100) -> List[SystemAuditLog]:
-        """Return the most recent audit log entries."""
-        return self.audit_repo.get_recent_logs(limit)
+    def get_audit_logs(self, limit: int = 100, action_filter: str = None) -> List[SystemAuditLog]:
+        """Return the most recent audit log entries, optionally filtered by action type."""
+        return self.audit_repo.get_recent_logs(limit, action_filter=action_filter)
+
+    def delete_audit_log(self, audit_id: int) -> bool:
+        """Permanently delete a single audit log entry by ID."""
+        return self.audit_repo.delete_by_id(audit_id)
+
+    def clear_audit_logs(self) -> int:
+        """Permanently delete all audit log entries. Returns number of rows deleted."""
+        return self.audit_repo.clear_all()
 
 
 # ---------------------------------------------------------------------------

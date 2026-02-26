@@ -15,52 +15,42 @@
            DESIGN TOKENS — Two themes, one accent colour (blue)
            ================================================================ */
         :root {
-            /* Accent — single colour across both themes */
-            --accent: #2563eb;
-            /* blue-600  */
+            --accent: #2563EB;
             --accent-hover: #1d4ed8;
-            /* blue-700  */
-            --accent-subtle: rgba(37, 99, 235, 0.12);
-
-            /* Semantic status colours — used sparingly only for badges */
+            --accent-subtle: rgba(37, 99, 235, 0.10);
             --ok: #16a34a;
-            /* green-700 */
-            --ok-bg: rgba(22, 163, 74, 0.12);
+            --ok-bg: rgba(22, 163, 74, 0.10);
             --err: #dc2626;
-            /* red-600   */
-            --err-bg: rgba(220, 38, 38, 0.12);
-
-            /* Typography scale */
+            --err-bg: rgba(220, 38, 38, 0.10);
+            --radius: 12px;
             --font-body: 'Inter', system-ui, sans-serif;
             --font-mono: 'JetBrains Mono', monospace;
         }
 
-        /* ---- Dark theme ---- */
         [data-theme="dark"] {
-            --bg: #0e1117;
-            --bg-surface: #151b27;
-            --bg-card: #1a2133;
-            --bg-raised: #202b3d;
-            --border: rgba(255, 255, 255, 0.08);
-            --border-mid: rgba(255, 255, 255, 0.14);
-            --text: #f1f5f9;
+            --bg: #0f1117;
+            --bg-surface: #161b26;
+            --bg-card: #1c2335;
+            --bg-raised: #212d40;
+            --border: rgba(255, 255, 255, 0.07);
+            --border-mid: rgba(255, 255, 255, 0.13);
+            --text: #f0f4f8;
             --text-soft: #94a3b8;
             --text-muted: #64748b;
-            --shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+            --shadow: 0 1px 8px rgba(0, 0, 0, 0.35), 0 4px 20px rgba(0, 0, 0, 0.18);
         }
 
-        /* ---- Light theme ---- */
         [data-theme="light"] {
-            --bg: #f1f5f9;
-            --bg-surface: #e2e8f0;
-            --bg-card: #ffffff;
-            --bg-raised: #f8fafc;
-            --border: rgba(0, 0, 0, 0.08);
-            --border-mid: rgba(0, 0, 0, 0.14);
-            --text: #0f172a;
-            --text-soft: #475569;
-            --text-muted: #94a3b8;
-            --shadow: 0 2px 16px rgba(0, 0, 0, 0.10);
+            --bg: #F7F9FC;
+            --bg-surface: #eef2f7;
+            --bg-card: #FFFFFF;
+            --bg-raised: #f4f6fa;
+            --border: rgba(0, 0, 0, 0.07);
+            --border-mid: rgba(0, 0, 0, 0.12);
+            --text: #111827;
+            --text-soft: #374151;
+            --text-muted: #9ca3af;
+            --shadow: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.07);
         }
 
         /* ================================================================
@@ -75,7 +65,7 @@
         }
 
         html {
-            font-size: 16px;
+            font-size: 14px;
         }
 
         body {
@@ -157,7 +147,7 @@
             align-items: center;
             gap: 12px;
             padding: 11px 14px;
-            border-radius: 10px;
+            border-radius: var(--radius);
             margin-bottom: 2px;
             cursor: pointer;
             font-size: 0.875rem;
@@ -195,7 +185,7 @@
         .node-pill {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: var(--radius);
             padding: 12px 14px;
         }
 
@@ -233,11 +223,9 @@
         }
 
         .page-title {
-            font-size: 0.8rem;
+            font-size: 0.92rem;
             font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: var(--text-soft);
+            color: var(--text);
         }
 
         .top-bar-right {
@@ -255,7 +243,7 @@
             font-size: 0.75rem;
             font-weight: 600;
             padding: 6px 12px;
-            border-radius: 8px;
+            border-radius: var(--radius);
             border: 1px solid var(--border);
             background: var(--bg-card);
             color: var(--text-soft);
@@ -290,7 +278,7 @@
         .btn-theme {
             width: 36px;
             height: 36px;
-            border-radius: 9px;
+            border-radius: 10px;
             border: 1px solid var(--border);
             background: var(--bg-card);
             color: var(--text-soft);
@@ -309,12 +297,10 @@
 
         /* Sign out */
         .btn-signout {
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            font-size: 0.82rem;
+            font-weight: 500;
             padding: 7px 14px;
-            border-radius: 9px;
+            border-radius: var(--radius);
             border: 1px solid rgba(220, 38, 38, 0.3);
             background: var(--err-bg);
             color: var(--err);
@@ -380,8 +366,9 @@
         .metric-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 22px 22px 18px;
+            border-radius: var(--radius);
+            padding: 20px 20px 16px;
+            box-shadow: var(--shadow);
             transition: box-shadow 0.2s, transform 0.2s;
         }
 
@@ -391,20 +378,21 @@
         }
 
         .metric-label {
-            font-size: 0.7rem;
+            font-size: 0.76rem;
             font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
             color: var(--text-muted);
-            margin-bottom: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .metric-value {
-            font-family: var(--font-mono);
-            font-size: 1.9rem;
+            font-size: 2rem;
             font-weight: 700;
             color: var(--text);
             line-height: 1;
+            letter-spacing: -0.5px;
         }
 
         .metric-value.danger {
@@ -412,9 +400,9 @@
         }
 
         .metric-sub {
-            font-size: 0.72rem;
+            font-size: 0.78rem;
             color: var(--text-muted);
-            margin-top: 8px;
+            margin-top: 6px;
         }
 
         .metric-sub.ok {
@@ -431,8 +419,10 @@
         .panel {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 24px;
+            border-radius: var(--radius);
+            padding: 22px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
             transition: background 0.25s;
         }
 
@@ -444,11 +434,9 @@
         }
 
         .panel-head h3 {
-            font-size: 0.82rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: var(--text-soft);
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: var(--text);
         }
 
 
@@ -456,11 +444,9 @@
            BADGES
            ================================================================ */
         .badge {
-            font-size: 0.65rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 4px 10px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 3px 9px;
             border-radius: 6px;
         }
 
@@ -572,24 +558,23 @@
         .data-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85rem;
+            font-size: 0.875rem;
         }
 
         .data-table th {
             text-align: left;
-            padding: 10px 14px;
-            font-size: 0.65rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
+            padding: 9px 14px;
+            font-size: 0.72rem;
+            font-weight: 600;
             color: var(--text-muted);
             border-bottom: 1px solid var(--border);
         }
 
         .data-table td {
-            padding: 14px 14px;
+            padding: 12px 14px;
             border-bottom: 1px solid var(--border);
             color: var(--text-soft);
+            font-size: 0.875rem;
         }
 
         .data-table tr:last-child td {
@@ -620,15 +605,14 @@
             display: inline-flex;
             align-items: center;
             gap: 7px;
-            padding: 9px 18px;
-            border-radius: 9px;
+            padding: 8px 16px;
+            border-radius: var(--radius);
             font-family: var(--font-body);
-            font-size: 0.78rem;
-            font-weight: 600;
+            font-size: 0.82rem;
+            font-weight: 500;
             cursor: pointer;
             border: 1px solid transparent;
-            transition: all 0.2s;
-            letter-spacing: 0.3px;
+            transition: all 0.18s;
         }
 
         .btn-primary {
@@ -686,12 +670,10 @@
         }
 
         .field-label {
-            font-size: 0.65rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: var(--text-muted);
-            margin-bottom: 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-soft);
+            margin-bottom: 8px;
         }
 
         .field-label.mt {
@@ -702,8 +684,8 @@
             width: 100%;
             background: var(--bg-raised);
             border: 1px solid var(--border-mid);
-            border-radius: 10px;
-            padding: 12px 14px;
+            border-radius: var(--radius);
+            padding: 10px 13px;
             color: var(--text);
             font-family: var(--font-body);
             font-size: 0.875rem;
@@ -734,7 +716,7 @@
             align-items: center;
             gap: 12px;
             padding: 10px 12px;
-            border-radius: 9px;
+            border-radius: var(--radius);
             border: 1px solid var(--border);
             cursor: pointer;
             transition: border-color 0.15s, background 0.15s;
@@ -880,12 +862,17 @@
             background: var(--bg-raised);
             border: 1px solid var(--border);
             border-left: 3px solid var(--accent);
-            border-radius: 10px;
-            padding: 14px 16px;
+            border-radius: var(--radius);
+            padding: 13px 15px;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             gap: 12px;
+            transition: background 0.15s;
+        }
+
+        .audit-item:hover {
+            background: var(--bg-card);
         }
 
         .audit-item.err {
@@ -897,26 +884,25 @@
         }
 
         .audit-action {
-            font-size: 0.8rem;
-            font-weight: 700;
+            font-size: 0.82rem;
+            font-weight: 600;
             color: var(--text);
             margin-bottom: 3px;
         }
 
         .audit-meta {
-            font-size: 0.72rem;
+            font-size: 0.78rem;
             color: var(--text-muted);
             margin-bottom: 3px;
         }
 
         .audit-detail {
-            font-size: 0.78rem;
+            font-size: 0.82rem;
             color: var(--text-soft);
         }
 
         .audit-time {
-            font-family: var(--font-mono);
-            font-size: 0.68rem;
+            font-size: 0.78rem;
             color: var(--text-muted);
             white-space: nowrap;
             margin-top: 2px;
@@ -937,14 +923,15 @@
         }
 
         .page-header h1 {
-            font-size: 1.35rem;
+            font-size: 1.3rem;
             font-weight: 700;
             color: var(--text);
-            margin-bottom: 4px;
+            margin-bottom: 5px;
+            letter-spacing: -0.3px;
         }
 
         .page-header p {
-            font-size: 0.85rem;
+            font-size: 0.875rem;
             color: var(--text-muted);
         }
 
@@ -972,8 +959,8 @@
         .modal-box {
             background: var(--bg-card);
             border: 1px solid var(--border-mid);
-            border-radius: 16px;
-            padding: 32px;
+            border-radius: var(--radius);
+            padding: 28px;
             width: 520px;
             max-width: 95vw;
             box-shadow: var(--shadow);
@@ -1364,92 +1351,86 @@
             <!-- ========== VIEW: OPERATIONS DASHBOARD ========== -->
             <div id="viewDashboard" class="view active">
 
-                <!-- Metric cards -->
+                <!-- Enrollment metric cards -->
                 <div class="metrics-grid">
                     <div class="metric-card">
-                        <div class="metric-label">Today's Scans</div>
+                        <div class="metric-label"><i class="fas fa-users"
+                                style="margin-right:6px;color:var(--accent);"></i>Total Enrolled</div>
                         <div class="metric-value" id="valTotal">—</div>
-                        <div class="metric-sub" id="subTotal">Awaiting data</div>
+                        <div class="metric-sub" id="subTotal">All registered drivers</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-label">Authorized</div>
-                        <div class="metric-value" id="valAuth">—</div>
-                        <div class="metric-sub ok" id="subAuth">Awaiting data</div>
+                        <div class="metric-label"><i class="fas fa-user-check"
+                                style="margin-right:6px;color:var(--ok);"></i>Active Drivers</div>
+                        <div class="metric-value" id="valActive">—</div>
+                        <div class="metric-sub ok" id="subActive">Ready for verification</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-label">Access Denied</div>
-                        <div class="metric-value danger" id="valUnauth">—</div>
-                        <div class="metric-sub err" id="subUnauth"></div>
+                        <div class="metric-label"><i class="fas fa-user-slash"
+                                style="margin-right:6px;color:var(--text-muted);"></i>Inactive</div>
+                        <div class="metric-value" id="valInactive">—</div>
+                        <div class="metric-sub" id="subInactive">Suspended / removed</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-label">Avg Latency</div>
-                        <div class="metric-value" id="valLatency">—</div>
-                        <div class="metric-sub" id="subLatency">ms per scan</div>
+                        <div class="metric-label"><i class="fas fa-calendar-plus"
+                                style="margin-right:6px;color:var(--accent);"></i>Enrolled Today</div>
+                        <div class="metric-value" id="valToday">—</div>
+                        <div class="metric-sub" id="subToday">New enrollments</div>
                     </div>
                 </div>
 
-                <!-- Security Alerts panel (visible only when there are unauthorized events) -->
-                <div class="alert-panel" id="alertPanel">
-                    <div class="alert-panel-header">
-                        <div class="alert-panel-title">
-                            <i class="fas fa-triangle-exclamation"></i>
-                            Security Alerts
-                            <span id="alertBadge"
-                                style="background:var(--err);color:#fff;border-radius:999px;font-size:0.68rem;padding:1px 7px;font-weight:700;">0</span>
-                        </div>
-                        <button class="alert-panel-clear" onclick="clearAlerts()">Clear all</button>
-                    </div>
-                    <div id="alertList"></div>
-                </div>
+                <!-- Two-column layout: recent enrollments + category breakdown -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
 
-                <!-- Latest verification result -->
-                <div class="panel" style="margin-bottom:20px;">
-                    <div class="panel-head">
-                        <h3>Latest Verification Result</h3>
+                    <!-- Category breakdown -->
+                    <div class="panel" style="margin-bottom:0;">
+                        <div class="panel-head">
+                            <h3><i class="fas fa-id-card" style="margin-right:8px;color:var(--accent);"></i>Category
+                                Breakdown</h3>
+                        </div>
+                        <div id="categoryBreakdown" style="padding:4px 0;">
+                            <div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0;">Loading…</div>
+                        </div>
                     </div>
-                    <div style="display:flex;align-items:center;gap:32px;padding:8px 0;">
-                        <div class="id-avatar" id="idAvatar" style="flex-shrink:0;margin-bottom:0;">
-                            <i class="fas fa-user-shield"></i>
+
+                    <!-- System readiness -->
+                    <div class="panel" style="margin-bottom:0;">
+                        <div class="panel-head">
+                            <h3><i class="fas fa-shield-halved"
+                                    style="margin-right:8px;color:var(--accent);"></i>Enrollment Phase Status</h3>
                         </div>
-                        <div style="flex:1;">
-                            <div class="id-name" id="idName" style="margin-bottom:4px;">Scanning…</div>
-                            <div class="id-status" id="idStatus">Waiting for detection</div>
-                        </div>
-                        <div style="flex:1;max-width:280px;">
-                            <div class="score-row">
-                                <span>Similarity score</span>
-                                <span class="score-val" id="resScore">—</span>
-                            </div>
-                            <div class="score-track">
-                                <div class="score-bar" id="resBar"></div>
-                            </div>
+                        <div id="readinessList" style="padding:4px 0;">
+                            <div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0;">Loading…</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Transaction History -->
+                <!-- Recent Enrollments -->
                 <div class="panel">
                     <div class="panel-head">
-                        <h3>Transaction History</h3>
-                        <span class="badge badge-muted" id="logCount">0 records</span>
+                        <h3><i class="fas fa-clock-rotate-left" style="margin-right:8px;color:var(--accent);"></i>Recent
+                            Enrollments</h3>
+                        <span class="badge badge-muted" id="enrollCount">0 records</span>
                     </div>
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Time</th>
-                                <th>Subject</th>
-                                <th>Score</th>
+                                <th>Photo</th>
+                                <th>Name</th>
+                                <th>Licence</th>
+                                <th>Categories</th>
+                                <th>Enrolled</th>
                                 <th>Status</th>
-                                <th>Speed</th>
                             </tr>
                         </thead>
-                        <tbody id="logsTbody">
+                        <tbody id="recentEnrollTbody">
                             <tr>
-                                <td colspan="5" class="table-empty">No verification records yet.</td>
+                                <td colspan="6" class="table-empty">Loading…</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
+
             </div>
             <!-- /VIEW: DASHBOARD -->
 
@@ -1580,6 +1561,42 @@
                 </div>
 
                 <div class="panel">
+                    <!-- Toolbar: filter + actions -->
+                    <div
+                        style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0 0 16px 0;border-bottom:1px solid var(--border);margin-bottom:16px;">
+                        <!-- Search -->
+                        <div style="position:relative;flex:1;min-width:180px;">
+                            <i class="fas fa-search"
+                                style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.8rem;"></i>
+                            <input type="text" id="auditSearch" placeholder="Search logs…"
+                                style="width:100%;padding:7px 10px 7px 30px;border-radius:8px;border:1px solid var(--border-mid);background:var(--bg-raised);color:var(--text);font-size:0.83rem;outline:none;"
+                                oninput="filterAuditLogs()">
+                        </div>
+                        <!-- Action filter -->
+                        <select id="auditActionFilter"
+                            style="padding:7px 12px;border-radius:8px;border:1px solid var(--border-mid);background:var(--bg-raised);color:var(--text);font-size:0.83rem;cursor:pointer;outline:none;"
+                            onchange="fetchAuditLogs()">
+                            <option value="">All actions</option>
+                            <option value="LOGIN">LOGIN</option>
+                            <option value="LOGOUT">LOGOUT</option>
+                            <option value="ENROLL_DRIVER">ENROLL_DRIVER</option>
+                            <option value="DELETE_DRIVER">DELETE_DRIVER</option>
+                            <option value="UPDATE_DRIVER">UPDATE_DRIVER</option>
+                            <option value="DELETE_AUDIT_LOG">DELETE_AUDIT_LOG</option>
+                            <option value="CLEAR_AUDIT_LOGS">CLEAR_AUDIT_LOGS</option>
+                        </select>
+                        <!-- Record count -->
+                        <span class="badge badge-muted" id="auditCountBadge" style="white-space:nowrap;">0
+                            records</span>
+                        <!-- Spacer -->
+                        <div style="flex:1;"></div>
+                        <!-- Clear All -->
+                        <button class="btn btn-danger" id="btnClearAudit"
+                            style="gap:6px;padding:7px 14px;font-size:0.82rem;" onclick="clearAuditLogs()">
+                            <i class="fas fa-trash-can"></i> Clear All
+                        </button>
+                    </div>
+
                     <div class="audit-list" id="auditList">
                         <div class="audit-empty">Loading audit records…</div>
                     </div>
@@ -1702,162 +1719,245 @@
         }
 
         // ------------------------------------------------------------------
-        // Fetch and render dashboard data — zero hardcoded values
+        // Fetch and render Operations (Enrollment Overview) — real data only
         // ------------------------------------------------------------------
         async function fetchDashboard() {
             if (!document.getElementById('viewDashboard').classList.contains('active')) return;
 
             try {
-                const res = await fetch('/api/status');
-                if (!res.ok) return;
-                const data = await res.json();
-
-                // ---- Metrics from today's stats -------------------------
-                const s = data.stats || {};
-                const total = s.total ?? 0;
-                const auth = s.authorized ?? 0;
-                const unauth = s.unauthorized ?? 0;
-
-                document.getElementById('valTotal').textContent = total;
-                document.getElementById('valAuth').textContent = auth;
-                document.getElementById('valUnauth').textContent = unauth;
-
-                // Sub-labels: show authorization rate if data exists
-                document.getElementById('subTotal').textContent =
-                    s.date ? ('Date: ' + s.date) : "Today's verifications";
-                document.getElementById('subAuth').textContent =
-                    total > 0 ? `${((auth / total) * 100).toFixed(1)}% auth rate` : 'No data yet';
-                document.getElementById('subUnauth').textContent =
-                    unauth > 0 ? `${unauth} breach${unauth !== 1 ? 'es' : ''} today` : '';
-
-                // ---- Latency from overall stats (separate endpoint) -----
-                // We fetch /api/statistics lazily for the heavy aggregate
-                fetchLatency();
-
-                // ---- Engine state ----------------------------------------
-                setChip(data.system_status === 'active');
-
-                // ---- Latest verification result -------------------------
-                const lv = data.latest_verification;
-                if (lv) {
-                    const avatar = document.getElementById('idAvatar');
-                    const nameEl = document.getElementById('idName');
-                    const statusEl = document.getElementById('idStatus');
-                    const scoreEl = document.getElementById('resScore');
-                    const barEl = document.getElementById('resBar');
-
-                    nameEl.textContent = lv.driver_name || 'Unknown';
-                    scoreEl.textContent = (lv.similarity ?? 0).toFixed(4);
-                    barEl.style.width = ((lv.similarity ?? 0) * 100) + '%';
-
-                    if (lv.authorized) {
-                        statusEl.textContent = 'Access Granted';
-                        statusEl.className = 'id-status ok';
-                        avatar.className = 'id-avatar ok';
-                    } else {
-                        statusEl.textContent = 'Access Denied';
-                        statusEl.className = 'id-status err';
-                        avatar.className = 'id-avatar err';
-                    }
+                // Engine status
+                const statusRes = await fetch('/api/status');
+                if (statusRes.ok) {
+                    const statusData = await statusRes.json();
+                    setChip(statusData.system_status === 'active');
                 }
 
-                // ---- Recent logs table ---------------------------------
-                renderLogsTable(data.recent_logs || []);
+                // All drivers data
+                const res = await fetch('/api/drivers');
+                if (!res.ok) return;
+                const drivers = await res.json();
+
+                const total = drivers.length;
+                const active = drivers.filter(d => d.status === 'active').length;
+                const inactive = total - active;
+                const todayStr = new Date().toISOString().split('T')[0];
+                const today = drivers.filter(d => d.enrollment_date && d.enrollment_date.startsWith(todayStr)).length;
+
+                // --- Metric cards ---
+                document.getElementById('valTotal').textContent = total;
+                document.getElementById('valActive').textContent = active;
+                document.getElementById('valInactive').textContent = inactive;
+                document.getElementById('valToday').textContent = today;
+
+                document.getElementById('subTotal').textContent = total === 1 ? '1 driver registered' : `${total} drivers registered`;
+                document.getElementById('subActive').textContent = active === 1 ? '1 driver active' : `${active} drivers active`;
+                document.getElementById('subInactive').textContent = inactive > 0 ? `${inactive} suspended/removed` : 'None suspended';
+                document.getElementById('subToday').textContent = today > 0 ? `${today} new today` : 'None today';
+
+                // --- Category breakdown ---
+                const catCounts = {};
+                const catLabels = { A: 'Motorcycles & light', B: 'Passenger cars', C: 'Trucks / HGV', D: 'Buses', E: 'Articulated' };
+                drivers.filter(d => d.status === 'active').forEach(d => {
+                    const cats = Array.isArray(d.categories) ? d.categories : (d.category || 'A').split(',');
+                    cats.forEach(c => { const k = c.trim(); catCounts[k] = (catCounts[k] || 0) + 1; });
+                });
+                const catDiv = document.getElementById('categoryBreakdown');
+                if (Object.keys(catCounts).length === 0) {
+                    catDiv.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;padding:12px 0;">No active drivers enrolled yet.</div>';
+                } else {
+                    const maxCount = Math.max(...Object.values(catCounts));
+                    catDiv.innerHTML = ['A', 'B', 'C', 'D', 'E'].filter(k => catCounts[k]).map(k => `
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                            <div style="width:28px;height:28px;border-radius:8px;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;flex-shrink:0;">${k}</div>
+                            <div style="flex:1;">
+                                <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px;">
+                                    <span style="color:var(--text-soft);">${catLabels[k] || k}</span>
+                                    <span style="font-weight:600;color:var(--text);">${catCounts[k]}</span>
+                                </div>
+                                <div style="background:var(--bg-raised);border-radius:99px;height:6px;">
+                                    <div style="background:var(--accent);border-radius:99px;height:6px;width:${(catCounts[k] / maxCount * 100).toFixed(0)}%;transition:width 0.4s;"></div>
+                                </div>
+                            </div>
+                        </div>`).join('');
+                }
+
+                // --- Phase readiness checklist ---
+                const checkItems = [
+                    { ok: total > 0, label: 'At least one driver enrolled', hint: total > 0 ? `${active} active` : 'Enroll a driver first' },
+                    { ok: active >= 3, label: '3+ active drivers (recommended)', hint: active >= 3 ? 'Good coverage' : `Need ${3 - active} more` },
+                    { ok: active > 0, label: 'Biometric embeddings stored', hint: active > 0 ? `${active} embedding(s) ready` : 'Complete enrollment' },
+                    { ok: true, label: 'Engine in standby mode', hint: 'Camera OFF — awaiting enrollment' },
+                ];
+                document.getElementById('readinessList').innerHTML = checkItems.map(item => `
+                    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
+                        <div style="width:22px;height:22px;border-radius:50%;background:${item.ok ? 'var(--ok-bg)' : 'var(--bg-raised)'};color:${item.ok ? 'var(--ok)' : 'var(--text-muted)'};display:flex;align-items:center;justify-content:center;font-size:0.72rem;flex-shrink:0;margin-top:1px;">
+                            <i class="fas ${item.ok ? 'fa-check' : 'fa-minus'}"></i>
+                        </div>
+                        <div>
+                            <div style="font-size:0.85rem;font-weight:500;color:${item.ok ? 'var(--text)' : 'var(--text-soft)'}">${item.label}</div>
+                            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">${item.hint}</div>
+                        </div>
+                    </div>`).join('');
+
+                // --- Recent enrollments table ---
+                const tbody = document.getElementById('recentEnrollTbody');
+                const countBadge = document.getElementById('enrollCount');
+                const recent = [...drivers].sort((a, b) =>
+                    new Date(b.enrollment_date || 0) - new Date(a.enrollment_date || 0)
+                ).slice(0, 10);
+
+                countBadge.textContent = `${total} driver${total !== 1 ? 's' : ''}`;
+
+                if (!recent.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No drivers enrolled yet. Use the Enrollment tab to add drivers.</td></tr>';
+                } else {
+                    tbody.innerHTML = recent.map(d => {
+                        const enrolled = d.enrollment_date
+                            ? new Date(d.enrollment_date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+                            : '—';
+                        const statusCls = d.status === 'active' ? 'badge-active' : 'badge-inactive';
+                        const photoHtml = d.photo_url
+                            ? `<img src="${d.photo_url}" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border-mid);" onerror="this.outerHTML='<i class=\'fas fa-user-circle\' style=\'font-size:1.4rem;color:var(--text-muted)\'></i>'">`
+                            : `<i class="fas fa-user-circle" style="font-size:1.4rem;color:var(--text-muted)"></i>`;
+                        const cats = Array.isArray(d.categories) ? d.categories.join(', ') : (d.category || '—');
+                        return `<tr>
+                            <td>${photoHtml}</td>
+                            <td style="font-weight:600;">${d.name}</td>
+                            <td style="font-family:var(--font-mono);font-size:0.82rem;">${d.license_number || '—'}</td>
+                            <td>${cats}</td>
+                            <td style="color:var(--text-muted);font-size:0.82rem;">${enrolled}</td>
+                            <td><span class="badge ${statusCls}" style="text-transform:capitalize;">${d.status}</span></td>
+                        </tr>`;
+                    }).join('');
+                }
 
             } catch (err) {
                 console.error('[fetchDashboard]', err);
             }
         }
 
-        let latencyFetched = false;
-        async function fetchLatency() {
-            // Avoids hammering the aggregate endpoint every 2 s
-            if (latencyFetched && Date.now() - fetchLatency._last < 15000) return;
-            fetchLatency._last = Date.now();
-            latencyFetched = true;
-            try {
-                const res = await fetch('/api/statistics');
-                const data = await res.json();
-                const ms = data.avg_processing_time_ms ?? 0;
-                document.getElementById('valLatency').textContent = ms.toFixed(0) + ' ms';
-                document.getElementById('subLatency').textContent =
-                    data.total_verifications
-                        ? `Across ${data.total_verifications} total scan${data.total_verifications !== 1 ? 's' : ''}`
-                        : 'No data yet';
-            } catch (e) { /* non-critical */ }
-        }
-        fetchLatency._last = 0;
-
-        function renderLogsTable(logs) {
-            const tbody = document.getElementById('logsTbody');
-            const countBadge = document.getElementById('logCount');
-
-            if (!logs.length) {
-                tbody.innerHTML = '<tr><td colspan="5" class="table-empty">No verification records yet.</td></tr>';
-                countBadge.textContent = '0 records';
-                return;
-            }
-
-            const shown = logs.slice(0, 12);
-            countBadge.textContent = `${shown.length} records`;
-
-            tbody.innerHTML = shown.map(log => {
-                const time = log.timestamp
-                    ? log.timestamp.replace('T', ' ').split('.')[0].split(' ')[1]
-                    : '—';
-                const scoreStr = typeof log.similarity_score === 'number'
-                    ? log.similarity_score.toFixed(3) : '—';
-                const msStr = typeof log.processing_time_ms === 'number'
-                    ? log.processing_time_ms.toFixed(0) + ' ms' : '—';
-                const badge = log.authorized
-                    ? '<span class="badge badge-ok">Authorized</span>'
-                    : '<span class="badge badge-err">Denied</span>';
-                return `<tr>
-                    <td><code>${time}</code></td>
-                    <td>${log.driver_name || 'Unknown'}</td>
-                    <td><code>${scoreStr}</code></td>
-                    <td>${badge}</td>
-                    <td><code>${msStr}</code></td>
-                </tr>`;
-            }).join('');
-        }
-
         // ------------------------------------------------------------------
-        // Audit logs
+        // Audit logs — fetch, filter, delete
         // ------------------------------------------------------------------
+        let _auditAllLogs = [];   // full fetched list for client-side search
+
         async function fetchAuditLogs() {
             const list = document.getElementById('auditList');
             list.innerHTML = '<div class="audit-empty">Loading…</div>';
+            const action = document.getElementById('auditActionFilter')?.value || '';
+            const url = '/api/audit?limit=200' + (action ? '&action=' + encodeURIComponent(action) : '');
             try {
-                const res = await fetch('/api/audit?limit=60');
-                const data = await res.json();
+                const res = await fetch(url);
+                _auditAllLogs = await res.json();
+                filterAuditLogs();
+            } catch (err) {
+                list.innerHTML = '<div class="audit-empty">Failed to load audit logs.</div>';
+                console.error('[fetchAuditLogs]', err);
+            }
+        }
 
-                if (!data.length) {
-                    list.innerHTML = '<div class="audit-empty">No audit records found.</div>';
-                    return;
-                }
+        function filterAuditLogs() {
+            const q = (document.getElementById('auditSearch')?.value || '').toLowerCase();
+            const data = q
+                ? _auditAllLogs.filter(l =>
+                    (l.action || '').toLowerCase().includes(q) ||
+                    (l.user_email || '').toLowerCase().includes(q) ||
+                    (l.details || '').toLowerCase().includes(q) ||
+                    (l.ip_address || '').toLowerCase().includes(q))
+                : _auditAllLogs;
 
-                list.innerHTML = data.map(log => {
-                    const ts = log.timestamp
-                        ? log.timestamp.replace('T', ' ').split('.')[0]
-                        : '—';
-                    let cls = '';
-                    if (log.action && log.action.includes('FAILURE')) cls = 'err';
-                    else if (log.action && (log.action.includes('START') || log.action.includes('ENROLL'))) cls = 'ok';
+            const list = document.getElementById('auditList');
+            const badge = document.getElementById('auditCountBadge');
+            const clearBtn = document.getElementById('btnClearAudit');
 
-                    return `<div class="audit-item ${cls}">
-                        <div>
+            badge.textContent = `${data.length} record${data.length !== 1 ? 's' : ''}`;
+            clearBtn.disabled = data.length === 0;
+
+            if (!data.length) {
+                list.innerHTML = '<div class="audit-empty">No matching audit records found.</div>';
+                return;
+            }
+
+            const ACTION_ICONS = {
+                LOGIN: 'fa-right-to-bracket', LOGOUT: 'fa-right-from-bracket',
+                ENROLL_DRIVER: 'fa-user-plus', DELETE_DRIVER: 'fa-user-minus',
+                UPDATE_DRIVER: 'fa-user-pen', DELETE_AUDIT_LOG: 'fa-trash',
+                CLEAR_AUDIT_LOGS: 'fa-trash-can',
+            };
+
+            list.innerHTML = data.map(log => {
+                const ts = log.timestamp ? log.timestamp.replace('T', ' ').split('.')[0] : '—';
+                let cls = '';
+                if (log.action?.includes('FAILURE')) cls = 'err';
+                else if (log.action?.includes('ENROLL') || log.action?.includes('START')) cls = 'ok';
+                else if (log.action?.includes('DELETE') || log.action?.includes('CLEAR')) cls = 'err';
+
+                const icon = ACTION_ICONS[log.action] || 'fa-circle-dot';
+
+                return `<div class="audit-item ${cls}" id="audit-row-${log.audit_id}">
+                    <div style="display:flex;align-items:flex-start;gap:12px;flex:1;">
+                        <div style="width:32px;height:32px;border-radius:8px;background:var(--bg-raised);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
+                            <i class="fas ${icon}" style="font-size:0.8rem;color:var(--text-muted);"></i>
+                        </div>
+                        <div style="flex:1;">
                             <div class="audit-action">${log.action || '—'}</div>
                             <div class="audit-meta">User: ${log.user_email || '—'} &bull; IP: ${log.ip_address || '—'}</div>
                             <div class="audit-detail">${log.details || ''}</div>
                         </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
                         <div class="audit-time">${ts}</div>
-                    </div>`;
-                }).join('');
+                        <button title="Delete this log entry"
+                            style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px 6px;border-radius:6px;transition:color 0.15s,background 0.15s;"
+                            onmouseover="this.style.color='var(--err)';this.style.background='var(--err-bg)';"
+                            onmouseout="this.style.color='var(--text-muted)';this.style.background='none';"
+                            onclick="deleteAuditLog(${log.audit_id})">
+                            <i class="fas fa-trash" style="font-size:0.78rem;"></i>
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
 
-            } catch (err) {
-                list.innerHTML = '<div class="audit-empty">Failed to load audit logs.</div>';
-                console.error('[fetchAuditLogs]', err);
+        async function deleteAuditLog(auditId) {
+            if (!confirm('Delete this log entry? This cannot be undone.')) return;
+            try {
+                const res = await fetch('/api/audit/' + auditId, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    // Remove row with a fade-out animation
+                    const row = document.getElementById('audit-row-' + auditId);
+                    if (row) {
+                        row.style.transition = 'opacity 0.3s, max-height 0.4s';
+                        row.style.opacity = '0';
+                        setTimeout(() => row.remove(), 400);
+                    }
+                    _auditAllLogs = _auditAllLogs.filter(l => l.audit_id !== auditId);
+                    // Update badge after removal
+                    const badge = document.getElementById('auditCountBadge');
+                    if (badge) badge.textContent = `${_auditAllLogs.length} record${_auditAllLogs.length !== 1 ? 's' : ''}`;
+                } else {
+                    alert('Failed to delete log: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Network error: ' + e.message);
+            }
+        }
+
+        async function clearAuditLogs() {
+            const count = _auditAllLogs.length;
+            if (count === 0) return;
+            if (!confirm(`Clear all ${count} audit log entries? This cannot be undone.`)) return;
+            try {
+                const res = await fetch('/api/audit', { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    await fetchAuditLogs(); // reload — will show 1 new CLEAR_AUDIT_LOGS entry
+                } else {
+                    alert('Clear failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Network error: ' + e.message);
             }
         }
 

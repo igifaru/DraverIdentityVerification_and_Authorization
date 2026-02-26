@@ -95,27 +95,69 @@ class AuditRepository:
             print(f"[AuditRepository] Error logging event '{action}': {exc}")
             return False
 
-    def get_recent_logs(self, limit: int = 50) -> List[SystemAuditLog]:
+    def get_recent_logs(self, limit: int = 50, action_filter: str = None) -> List[SystemAuditLog]:
         """
         Return the most recent audit log entries, newest first.
 
         Args:
             limit: Maximum number of rows to return.
+            action_filter: Optional action type to filter by (e.g. 'LOGIN').
 
         Returns:
             List of SystemAuditLog instances (empty list on error).
         """
         try:
             with self._db() as cur:
-                cur.execute(
-                    """
-                    SELECT * FROM audit_logs
-                    ORDER BY timestamp DESC
-                    LIMIT %s
-                    """,
-                    (limit,),
-                )
+                if action_filter:
+                    cur.execute(
+                        """
+                        SELECT * FROM audit_logs
+                        WHERE action = %s
+                        ORDER BY timestamp DESC
+                        LIMIT %s
+                        """,
+                        (action_filter, limit),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT * FROM audit_logs
+                        ORDER BY timestamp DESC
+                        LIMIT %s
+                        """,
+                        (limit,),
+                    )
                 return [self._row_to_audit_log(row) for row in cur.fetchall()]
         except Exception as exc:
             print(f"[AuditRepository] Error fetching audit logs: {exc}")
             return []
+
+    def delete_by_id(self, audit_id: int) -> bool:
+        """
+        Permanently delete a single audit log entry by its ID.
+
+        Returns:
+            True if a row was deleted, False otherwise.
+        """
+        try:
+            with self._db() as cur:
+                cur.execute("DELETE FROM audit_logs WHERE audit_id = %s", (audit_id,))
+                return cur.rowcount > 0
+        except Exception as exc:
+            print(f"[AuditRepository] Error deleting audit log id={audit_id}: {exc}")
+            return False
+
+    def clear_all(self) -> int:
+        """
+        Permanently delete ALL audit log entries.
+
+        Returns:
+            Number of rows deleted.
+        """
+        try:
+            with self._db() as cur:
+                cur.execute("DELETE FROM audit_logs")
+                return cur.rowcount
+        except Exception as exc:
+            print(f"[AuditRepository] Error clearing audit logs: {exc}")
+            return 0

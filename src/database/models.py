@@ -15,7 +15,7 @@ class Driver:
     driver_id: Optional[int] = None
     name: str = ""
     license_number: Optional[str] = None
-    category: str = "A"  # Comma-separated categories e.g. "A,B,C"
+    category: str = "B"  # Comma-separated categories e.g. "A,B,C"
     biometric_embedding: Optional[np.ndarray] = None
     enrollment_date: Optional[datetime] = None
     email: Optional[str] = None
@@ -28,7 +28,7 @@ class Driver:
         'C': 'Trucks / heavy goods vehicles',
         'D': 'Buses / passenger transport',
         'E': 'Articulated / special vehicles',
-        'F' : 'Tractors and agricultural machinery.'
+        'F' : 'Tractors and agricultural machinery'
     }
 
     @property

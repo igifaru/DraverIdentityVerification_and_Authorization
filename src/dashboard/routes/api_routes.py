@@ -25,7 +25,7 @@ api_bp = Blueprint('api', __name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
-VALID_CATEGORY_CODES = {'A', 'B', 'C', 'D', 'E'}
+VALID_CATEGORY_CODES = {'B', 'C', 'D', 'E', 'F'}   # A (motorcycles) excluded — vehicle-only system
 
 
 def _get_engine():
@@ -299,27 +299,27 @@ def enroll_capture_live():
     """
     engine = _get_engine()
 
-    # Start camera on-demand if it is not already running
+    # Start camera on-demand if not already running
     if not engine.video_stream.is_running:
         print("[enroll/live] Starting camera on demand …")
         engine.start_camera()
-        time.sleep(2.5)  # Allow camera sensor to fully warm up
+        time.sleep(3.0)   # Give sensor time to auto-expose and stabilise
 
-    MAX_TRIES = 5
-    last_error = 'No face detected'
+    MAX_TRIES  = 8           # Up from 5 — give MTCNN more attempts
+    RETRY_WAIT = 0.8         # 800 ms between attempts
+    last_error = 'No face detected — ensure your face is visible and well-lit'
 
     for attempt in range(MAX_TRIES):
         # Always read a FRESH raw frame directly from the video stream.
         # engine.latest_frame may have verification overlays (banners, text)
-        # baked into it by the result handler, which would confuse face detection
-        # and show "No face detected" text on the enrollment preview.
+        # baked into it by the result handler, which would confuse face detection.
         frame = engine.video_stream.read_frame()
         if frame is None:
             with engine._frame_lock:
                 frame = engine.latest_frame.copy() if engine.latest_frame is not None else None
 
         if frame is None:
-            return jsonify({'success': False, 'error': 'No video stream available'})
+            return jsonify({'success': False, 'error': 'No video stream available — check camera connection'})
 
         # Validate that a face is detectable
         preprocessed, status = engine.face_processor.process_for_enrollment(frame)
@@ -327,13 +327,15 @@ def enroll_capture_live():
             # Face found — return the original frame for preview
             _, buffer = cv2.imencode('.jpg', frame)
             image_b64 = base64.b64encode(buffer).decode('utf-8')
+            print(f"[enroll/live] Face captured on attempt {attempt + 1}")
             return jsonify({'success': True, 'image': image_b64})
 
         last_error = status
-        print(f"[enroll/live] Attempt {attempt + 1}/{MAX_TRIES}: {status} — retrying…")
-        time.sleep(0.6)  # Wait 600 ms before next frame
+        print(f"[enroll/live] Attempt {attempt + 1}/{MAX_TRIES}: {status} — retrying in {RETRY_WAIT}s")
+        time.sleep(RETRY_WAIT)
 
     return jsonify({'error': last_error})
+
 
 
 @api_bp.route('/enroll/save', methods=['POST'])

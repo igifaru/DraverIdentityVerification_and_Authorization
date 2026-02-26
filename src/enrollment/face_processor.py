@@ -137,49 +137,48 @@ class FaceProcessor:
     
     def validate_face_quality(self, image: np.ndarray, detection: dict) -> Tuple[bool, str]:
         """
-        Validate face quality for enrollment
-        
-        Args:
-            image: Input image
-            detection: Detection dictionary
-            
-        Returns:
-            Tuple of (is_valid, reason)
+        Validate face quality for enrollment.
+        Returns (is_valid, reason).
         """
         # Check confidence
-        if detection['confidence'] < 0.82:
+        if detection['confidence'] < 0.75:
             return False, f"Low confidence: {detection['confidence']:.2f}"
-        
+
         # Check face size
         x, y, width, height = detection['box']
-        face_area = width * height
-        image_area = image.shape[0] * image.shape[1]
-        face_ratio = face_area / image_area
-        
-        if face_ratio < 0.05:
-            return False, "Face too small in frame"
-        
-        if face_ratio > 0.8:
-            return False, "Face too close to camera"
-        
-        # Check if face is centered
-        face_center_x = x + width / 2
-        face_center_y = y + height / 2
-        image_center_x = image.shape[1] / 2
-        image_center_y = image.shape[0] / 2
-        
+        face_area   = width * height
+        image_area  = image.shape[0] * image.shape[1]
+        face_ratio  = face_area / image_area
+
+        # Must be at least 3% of frame (was 5% — too strict for distant webcams)
+        if face_ratio < 0.03:
+            return False, "Face too small — move closer to the camera"
+
+        if face_ratio > 0.85:
+            return False, "Face too close to camera — move back slightly"
+
+        # Require minimum pixel size regardless of ratio
+        if width < 60 or height < 60:
+            return False, "Face resolution too low — move closer"
+
+        # Centering check — allow ±40% offset (was ±30%)
+        face_center_x   = x + width  / 2
+        face_center_y   = y + height / 2
+        image_center_x  = image.shape[1] / 2
+        image_center_y  = image.shape[0] / 2
         offset_x = abs(face_center_x - image_center_x) / image.shape[1]
         offset_y = abs(face_center_y - image_center_y) / image.shape[0]
-        
-        if offset_x > 0.3 or offset_y > 0.3:
-            return False, "Face not centered"
-        
-        # Check aspect ratio (should be roughly square)
+
+        if offset_x > 0.4 or offset_y > 0.4:
+            return False, "Face not centered — move to the middle of the frame"
+
+        # Aspect ratio check
         aspect_ratio = width / height
-        if aspect_ratio < 0.7 or aspect_ratio > 1.3:
-            return False, "Unusual face aspect ratio"
-        
+        if aspect_ratio < 0.6 or aspect_ratio > 1.4:
+            return False, "Unusual face angle — face the camera directly"
+
         return True, "OK"
+
     
     def process_for_enrollment(self, image: np.ndarray):
         """
@@ -190,8 +189,9 @@ class FaceProcessor:
             raw_face_crop is a uint8 BGR image suitable for generate_embedding().
             Returns (None, reason) if detection or quality check fails.
         """
-        # Detect face with lower threshold for enrollment (more permissive)
-        detection = self.detect_face(image, min_confidence=0.75)
+        # Detect face — use 0.70 threshold for enrollment (permissive)
+        detection = self.detect_face(image, min_confidence=0.70)
+
 
         if detection is None:
             return None, "No face detected"

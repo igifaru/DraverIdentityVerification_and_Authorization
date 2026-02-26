@@ -126,9 +126,10 @@ async function fetchDashboard() {
 
         // --- Category breakdown ---
         const catCounts = {};
-        const catLabels = { A: 'Motorcycles & light', B: 'Passenger cars', C: 'Trucks / HGV', D: 'Buses', E: 'Articulated' };
+        const catLabels = { B: 'Passenger cars', C: 'Trucks / HGV', D: 'Buses', E: 'Articulated', F: 'Tractors / Agri' };
         drivers.filter(d => d.status === 'active').forEach(d => {
-            const cats = Array.isArray(d.categories) ? d.categories : (d.category || 'A').split(',');
+            const cats = Array.isArray(d.categories) ? d.categories : (d.category || 'B').split(',');
+
             cats.forEach(c => { const k = c.trim(); catCounts[k] = (catCounts[k] || 0) + 1; });
         });
         const catDiv = document.getElementById('categoryBreakdown');
@@ -457,7 +458,7 @@ function resetEnrollForm() {
     document.getElementById('enrollName').value = '';
     document.getElementById('enrollID').value = '';
     document.querySelectorAll('#categoryGroup input[name="driverCategory"]')
-        .forEach(cb => { cb.checked = cb.value === 'A'; });
+        .forEach(cb => { cb.checked = cb.value === 'B'; });
     document.getElementById('enrollPreview').style.display = 'none';
     document.getElementById('enrollPlaceholder').style.display = '';
     document.getElementById('captureStatus').style.display = 'none';

@@ -28,6 +28,7 @@ class Driver:
         'C': 'Trucks / heavy goods vehicles',
         'D': 'Buses / passenger transport',
         'E': 'Articulated / special vehicles',
+        'F' : 'Tractors and agricultural machinery.'
     }
 
     @property

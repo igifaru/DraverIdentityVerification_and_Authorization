@@ -359,40 +359,66 @@ class VerificationEngine:
 
     def enroll_new_driver(self, name: str, license_number: str, images: list,
                           category: str = 'A') -> Tuple[bool, str]:
-        """Enroll a new driver from a list of provided images (multi-sample)"""
+        """Enroll a new driver from a list of provided images (multi-sample).
+
+        Pipeline per image:
+          1. Detect + align + crop face (process_for_enrollment → raw BGR crop)
+          2. Generate L2-normalised 128-d embedding (FaceNet via DeepFace)
+          3. Validate: no NaN/Inf, non-zero norm
+          4. Average valid embeddings and re-normalise the mean
+          5. Persist to DB
+        """
         if not images:
             return False, "No images provided for enrollment"
-            
-        print(f"\n=== ENROLLMENT DEBUG: Processing {len(images)} images for {name} ===")
+
+        print(f"\n=== ENROLLMENT: Processing {len(images)} images for {name} ===")
         embeddings = []
         errors = []
-        
+
         for idx, img in enumerate(images):
-            print(f"Sample {idx+1}: Image type={type(img)}, shape={img.shape if hasattr(img, 'shape') else 'N/A'}")
-            
-            preprocessed, status = self.face_processor.process_for_enrollment(img)
-            if preprocessed is not None:
-                print(f"Sample {idx+1}: Face detected and preprocessed successfully")
-                embedding = self.face_processor.generate_embedding(preprocessed)
-                if embedding is not None:
-                    embeddings.append(embedding)
-                    print(f"Sample {idx+1}: Embedding generated (shape={embedding.shape})")
-                else:
-                    errors.append(f"Sample {idx+1}: Could not generate biometric signature")
-                    print(f"Sample {idx+1}: Failed to generate embedding")
-            else:
+            print(f"Sample {idx+1}/{len(images)}: shape={getattr(img, 'shape', 'N/A')}")
+
+            face_crop, status = self.face_processor.process_for_enrollment(img)
+            if face_crop is None:
                 errors.append(f"Sample {idx+1}: {status}")
-                print(f"Sample {idx+1}: Face detection failed - {status}")
-                
-        print(f"=== ENROLLMENT SUMMARY: {len(embeddings)}/{len(images)} samples successful ===\n")
-        
-        if len(embeddings) < 1:
-            error_msg = "; ".join(errors[:3])
-            return False, f"Enrollment failed: {error_msg}"
-            
-        # Averaging Logic: Create a robust biometric signature from all valid samples
-        mean_embedding = np.mean(embeddings, axis=0)
-        
+                print(f"  -> Skipped: {status}")
+                continue
+
+            embedding = self.face_processor.generate_embedding(face_crop)
+            if embedding is None:
+                errors.append(f"Sample {idx+1}: embedding generation failed")
+                print(f"  -> Skipped: embedding generation failed")
+                continue
+
+            # Validate embedding quality
+            if np.isnan(embedding).any() or np.isinf(embedding).any():
+                errors.append(f"Sample {idx+1}: NaN/Inf in embedding")
+                print(f"  -> Skipped: NaN/Inf in embedding")
+                continue
+
+            norm = np.linalg.norm(embedding)
+            if norm < 1e-6:
+                errors.append(f"Sample {idx+1}: near-zero norm embedding")
+                print(f"  -> Skipped: near-zero norm embedding")
+                continue
+
+            embeddings.append(embedding)
+            print(f"  -> OK (dim={embedding.shape[0]}, norm={norm:.4f})")
+
+        print(f"=== {len(embeddings)}/{len(images)} samples valid ===\n")
+
+        if not embeddings:
+            return False, "Enrollment failed: " + "; ".join(errors[:3])
+
+        # Average the unit-sphere embeddings then re-normalise so the stored
+        # vector is itself a unit vector (critical for correct cosine similarity)
+        mean_emb = np.mean(np.stack(embeddings, axis=0), axis=0)
+        mean_norm = np.linalg.norm(mean_emb)
+        if mean_norm < 1e-8:
+            return False, "Enrollment failed: mean embedding is degenerate"
+        final_embedding = (mean_emb / mean_norm).astype(np.float32)
+        print(f"[enroll] Final embedding: dim={final_embedding.shape[0]}, norm={np.linalg.norm(final_embedding):.6f}")
+
         # ---- Save enrollment portrait photo to disk ----
         photo_path = None
         try:
@@ -403,7 +429,6 @@ class VerificationEngine:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{timestamp}_{safe_name}.jpg"
             filepath = photo_dir / filename
-            # Use the first captured image as the portrait
             cv2.imwrite(str(filepath), images[0])
             photo_path = str(filepath)
             print(f"[enroll] Portrait saved: {photo_path}")
@@ -411,13 +436,15 @@ class VerificationEngine:
             print(f"[enroll] Warning: could not save portrait photo: {exc}")
 
         try:
-            self.db.enroll_driver(name, mean_embedding,
+            self.db.enroll_driver(name, final_embedding,
                                   license_number=license_number,
                                   category=category,
                                   photo_path=photo_path)
-            return True, f"Successfully enrolled {name} (Category {category}) with {len(embeddings)}/5 biometric samples"
-        except Exception as e:
-            return False, f"Database error: {str(e)}"
+            return True, (f"Successfully enrolled {name} (Category {category}) "
+                          f"with {len(embeddings)}/{len(images)} biometric samples")
+        except Exception as exc:
+            return False, f"Database error: {exc}"
+
 
 
 

@@ -181,86 +181,101 @@ class FaceProcessor:
         
         return True, "OK"
     
-    def process_for_enrollment(self, image: np.ndarray) -> Tuple[Optional[np.ndarray], str]:
+    def process_for_enrollment(self, image: np.ndarray):
         """
-        Complete preprocessing pipeline for enrollment
-        
-        Args:
-            image: Input image
-            
+        Complete preprocessing pipeline for enrollment.
+
         Returns:
-            Tuple of (preprocessed_face, status_message)
+            Tuple of (raw_face_crop, status_message)
+            raw_face_crop is a uint8 BGR image suitable for generate_embedding().
+            Returns (None, reason) if detection or quality check fails.
         """
         # Detect face with lower threshold for enrollment (more permissive)
         detection = self.detect_face(image, min_confidence=0.75)
-        
+
         if detection is None:
             return None, "No face detected"
-        
+
         # Validate quality
         is_valid, reason = self.validate_face_quality(image, detection)
         if not is_valid:
             return None, f"Quality check failed: {reason}"
-        
-        # Align face
+
+        # Align face using eye landmarks
         aligned = self.align_face(image, detection)
-        
-        # Extract face region
-        face = self.extract_face(aligned, detection)
-        
-        if face is None:
+
+        # Extract face region (raw uint8 BGR crop)
+        face_crop = self.extract_face(aligned, detection)
+
+        if face_crop is None:
             return None, "Failed to extract face"
-        
-        # Preprocess
-        preprocessed = self.preprocess_face(face)
-        
-        return preprocessed, "OK"
-    
-    def generate_embedding(self, face_image: np.ndarray) -> Optional[np.ndarray]:
+
+        return face_crop, "OK"
+
+
+    def generate_embedding(self, face_crop: np.ndarray) -> Optional[np.ndarray]:
         """
-        Generate FaceNet embedding using DeepFace
-        
+        Generate a L2-normalised FaceNet-128 embedding from a raw face crop.
+
         Args:
-            face_image: Preprocessed face image (160x160, normalized)
-            
+            face_crop: Raw BGR uint8 face image (any size — will be resized
+                        internally by DeepFace to 160x160).
+
         Returns:
-            128-dimensional embedding or None if failed
+            128-dimensional L2-normalised embedding as float32, or None on failure.
         """
         try:
             from deepface import DeepFace
-            
-            print(f"  Generating embedding for face: shape={face_image.shape}, dtype={face_image.dtype}, range=[{face_image.min():.2f}, {face_image.max():.2f}]")
-            
-            # DeepFace expects image in [0, 255] range for input
-            # Convert from normalized [-1, 1] back to [0, 255] if needed
-            # Or if input is already uint8, just use it
-            if face_image.dtype == np.float32 or face_image.max() <= 1.0:
-                face_uint8 = ((face_image * 128.0) + 127.5).astype('uint8')
+
+            # Ensure the image is uint8 in RGB colour space
+            if face_crop.dtype != np.uint8:
+                # Convert float [0,1] or [-1,1] to uint8 [0,255]
+                face_uint8 = np.clip(
+                    (face_crop * 127.5 + 127.5) if face_crop.min() < 0
+                    else (face_crop * 255),
+                    0, 255
+                ).astype(np.uint8)
             else:
-                face_uint8 = face_image.astype('uint8')
-            
-            # Generate embedding using FaceNet
-            embedding_obj = DeepFace.represent(
-                img_path=face_uint8,
+                face_uint8 = face_crop
+
+            # Convert BGR → RGB (DeepFace expects RGB)
+            face_rgb = cv2.cvtColor(face_uint8, cv2.COLOR_BGR2RGB)
+
+            # Resize to FaceNet input size
+            face_resized = cv2.resize(face_rgb, self.target_size, interpolation=cv2.INTER_AREA)
+
+            print(f"  Generating embedding: shape={face_resized.shape}, "
+                  f"dtype={face_resized.dtype}, "
+                  f"range=[{face_resized.min()},{face_resized.max()}]")
+
+            result = DeepFace.represent(
+                img_path=face_resized,
                 model_name='Facenet',
                 enforce_detection=False,
-                detector_backend='skip'
+                detector_backend='skip',
             )
-            
-            # Extract embedding vector
-            if isinstance(embedding_obj, list):
-                embedding = np.array(embedding_obj[0]['embedding'])
-            else:
-                embedding = np.array(embedding_obj['embedding'])
-            
-            print(f"  Embedding generated successfully: shape={embedding.shape}")
+
+            raw = np.array(
+                result[0]['embedding'] if isinstance(result, list) else result['embedding'],
+                dtype=np.float32
+            )
+
+            # L2-normalise so that cosine similarity == dot product
+            norm = np.linalg.norm(raw)
+            if norm < 1e-8:
+                print("  ERROR: Near-zero norm embedding — face may be blank")
+                return None
+            embedding = raw / norm
+
+            print(f"  Embedding OK: shape={embedding.shape}, norm={np.linalg.norm(embedding):.4f}")
             return embedding
-            
-        except Exception as e:
+
+        except Exception as exc:
             import traceback
-            print(f"ERROR: Failed to generate embedding: {e}")
-            print(f"Traceback: {traceback.format_exc()}")
+            print(f"ERROR: Failed to generate embedding: {exc}")
+            print(traceback.format_exc())
             return None
+
 
     def draw_detection(self, image: np.ndarray, detection: dict) -> np.ndarray:
         """

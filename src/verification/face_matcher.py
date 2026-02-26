@@ -59,37 +59,58 @@ class FaceMatcher:
     
     def find_best_match(self, live_embedding: np.ndarray) -> Tuple[Optional[int], Optional[str], float]:
         """
-        Find best matching driver for live embedding
-        
-        Args:
-            live_embedding: Embedding from live camera feed
-            
+        Find the best matching driver for a live embedding.
+
+        The live embedding is L2-normalised before comparison.
+        Stored embeddings are expected to be unit vectors (norm≈1.0).
+        Cosine similarity = dot product for unit vectors.
+
         Returns:
             Tuple of (driver_id, driver_name, similarity_score)
-            Returns (None, None, 0.0) if no match found
+            Returns (None, None, 0.0) if no enrolled drivers or ambiguous match.
         """
-        # Get all enrolled embeddings
-        enrolled_embeddings = self.db.get_all_embeddings()
-        
-        if not enrolled_embeddings:
+        enrolled = self.db.get_all_embeddings()
+        if not enrolled:
             print("WARNING: No enrolled drivers in database")
             return None, None, 0.0
-        
-        best_match_id = None
-        best_match_name = None
-        best_similarity = 0.0
-        
-        # Compare with each enrolled driver
-        for driver_id, driver_name, enrolled_embedding in enrolled_embeddings:
-            similarity = self.calculate_cosine_similarity(live_embedding, enrolled_embedding)
-            
-            if similarity > best_similarity:
-                best_similarity = similarity
-                best_match_id = driver_id
-                best_match_name = driver_name
-        
-        return best_match_id, best_match_name, best_similarity
-    
+
+        # L2-normalise the live embedding
+        live_norm = np.linalg.norm(live_embedding)
+        if live_norm < 1e-8:
+            print("WARNING: Live embedding is near-zero — skipping match")
+            return None, None, 0.0
+        live_unit = live_embedding / live_norm
+
+        best_id, best_name, best_sim = None, None, 0.0
+        second_sim = 0.0
+
+        for driver_id, driver_name, stored_emb in enrolled:
+            # Ensure stored embedding is also a unit vector (defensive)
+            s_norm = np.linalg.norm(stored_emb)
+            if s_norm < 1e-8:
+                continue
+            stored_unit = stored_emb / s_norm
+
+            sim = float(np.dot(live_unit, stored_unit))   # == cosine similarity
+
+            if sim > best_sim:
+                second_sim = best_sim
+                best_sim   = sim
+                best_id    = driver_id
+                best_name  = driver_name
+            elif sim > second_sim:
+                second_sim = sim
+
+        # Reject ambiguous matches: if runner-up is within 0.05 of the best,
+        # we cannot reliably identify the person.
+        gap = best_sim - second_sim
+        if best_name and second_sim > 0.3 and gap < 0.05:
+            print(f"  WARNING: Ambiguous match — best={best_name} ({best_sim:.4f}), "
+                  f"gap={gap:.4f} < 0.05. Treating as no match.")
+            return None, None, best_sim
+
+        return best_id, best_name, best_sim
+
     def verify_identity(self, live_embedding: np.ndarray, threshold: float = None) -> Tuple[bool, Optional[int], Optional[str], float]:
         """
         Verify if live embedding matches any enrolled driver

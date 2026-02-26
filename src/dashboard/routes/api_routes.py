@@ -87,37 +87,17 @@ def _decode_images(images_data: list) -> List[np.ndarray]:
 
 @api_bp.route('/status')
 def get_status():
-    """Return current system status, today's stats, and the latest result."""
+    """Return current system status for the dashboard engine chip."""
     engine = _get_engine()
-    stats = engine.db.get_daily_statistics()
-
-    payload = {
+    return jsonify({
         'system_status': 'active' if engine.is_running else 'stopped',
         'timestamp': time.time(),
-        'stats': stats,
         'system_info': {
-            'id':           config.system_id,
+            'id':            config.system_id,
             'vehicle_plate': config.vehicle_plate,
-            'owner_name':   config.owner_name,
+            'owner_name':    config.owner_name,
         },
-    }
-
-    if engine.latest_result:
-        r = engine.latest_result
-        payload['latest_verification'] = {
-            'authorized':      r['authorized'],
-            'driver_name':     r['driver_name'],
-            'similarity':      float(r['similarity_score']),
-            'message':         r.get('status_message', ''),
-            'liveness_passed': r['liveness_passed'],
-            'result_timestamp': r.get('result_timestamp', 0),
-        }
-
-    # Include recent log rows so the dashboard table needs no extra round-trip
-    recent = engine.db.get_recent_logs(limit=12)
-    payload['recent_logs'] = [log.to_dict() for log in recent]
-
-    return jsonify(payload)
+    })
 
 
 @api_bp.route('/alerts')
@@ -182,11 +162,6 @@ def serve_alert_image(log_id: int):
         return jsonify({'error': 'Image file missing on disk'}), 404
 
     return send_file(path, mimetype='image/jpeg')
-
-@api_bp.route('/statistics')
-def get_statistics():
-    """Return aggregate verification statistics."""
-    return jsonify(_get_engine().db.get_statistics())
 
 
 @api_bp.route('/audit', methods=['GET', 'DELETE'])
@@ -319,10 +294,8 @@ def update_driver(driver_id: int):
 def enroll_capture_live():
     """
     Capture a single frame from the live camera stream for enrollment preview.
-
-    The front-end polls this endpoint repeatedly while the user positions their
-    face.  We return the *original* (undistorted) frame so the UI can show it;
-    face detection happens later during /enroll/save.
+    Retries up to 4 times (600 ms apart) if no face is detected, to handle
+    camera warm-up lag and momentary detection misses.
     """
     engine = _get_engine()
 
@@ -330,24 +303,37 @@ def enroll_capture_live():
     if not engine.video_stream.is_running:
         print("[enroll/live] Starting camera on demand …")
         engine.start_camera()
-        time.sleep(1.0)  # Allow camera sensor to warm up
+        time.sleep(2.5)  # Allow camera sensor to fully warm up
 
-    with engine._frame_lock:
-        frame = engine.latest_frame.copy() if engine.latest_frame is not None \
-                else engine.video_stream.read_frame()
+    MAX_TRIES = 5
+    last_error = 'No face detected'
 
-    if frame is None:
-        return jsonify({'success': False, 'message': 'No video stream available'})
+    for attempt in range(MAX_TRIES):
+        # Always read a FRESH raw frame directly from the video stream.
+        # engine.latest_frame may have verification overlays (banners, text)
+        # baked into it by the result handler, which would confuse face detection
+        # and show "No face detected" text on the enrollment preview.
+        frame = engine.video_stream.read_frame()
+        if frame is None:
+            with engine._frame_lock:
+                frame = engine.latest_frame.copy() if engine.latest_frame is not None else None
 
-    # Validate that a face is detectable before sending the frame
-    preprocessed, status = engine.face_processor.process_for_enrollment(frame)
-    if preprocessed is None:
-        return jsonify({'error': status})
+        if frame is None:
+            return jsonify({'success': False, 'error': 'No video stream available'})
 
-    # Return the original frame (not the crop) so the UI renders the full view
-    _, buffer = cv2.imencode('.jpg', frame)
-    image_b64 = base64.b64encode(buffer).decode('utf-8')
-    return jsonify({'success': True, 'image': image_b64})
+        # Validate that a face is detectable
+        preprocessed, status = engine.face_processor.process_for_enrollment(frame)
+        if preprocessed is not None:
+            # Face found — return the original frame for preview
+            _, buffer = cv2.imencode('.jpg', frame)
+            image_b64 = base64.b64encode(buffer).decode('utf-8')
+            return jsonify({'success': True, 'image': image_b64})
+
+        last_error = status
+        print(f"[enroll/live] Attempt {attempt + 1}/{MAX_TRIES}: {status} — retrying…")
+        time.sleep(0.6)  # Wait 600 ms before next frame
+
+    return jsonify({'error': last_error})
 
 
 @api_bp.route('/enroll/save', methods=['POST'])

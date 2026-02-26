@@ -1995,7 +1995,7 @@
 
             btn.disabled = true;
             enrollmentSamples = [];
-            setEnrollMsg('Initializing biometric capture…', '');
+            setEnrollMsg('Starting camera… please wait.', '');
 
             const statusText = document.getElementById('captureStatus');
             const progressBar = document.getElementById('captureProgress');
@@ -2005,6 +2005,7 @@
             for (let i = 1; i <= TOTAL_SAMPLES; i++) {
                 statusText.textContent = `Sample ${i} / ${TOTAL_SAMPLES}`;
                 progressBar.style.width = ((i / TOTAL_SAMPLES) * 100) + '%';
+                setEnrollMsg(`Capturing sample ${i} of ${TOTAL_SAMPLES} — look directly at the camera…`, '');
 
                 try {
                     const res = await fetch('/api/enroll/live', { method: 'POST' });
@@ -2016,13 +2017,28 @@
                         preview.src = 'data:image/jpeg;base64,' + data.image;
                         preview.style.display = 'block';
                         document.getElementById('enrollPlaceholder').style.display = 'none';
+                        setEnrollMsg(`Sample ${i} captured ✓`, 'ok');
                     } else {
-                        throw new Error(data.error || 'Capture returned no image');
+                        // Build a user-friendly hint from the server error
+                        const err = data.error || 'Capture returned no image';
+                        let hint = err;
+                        if (err.toLowerCase().includes('no face')) {
+                            hint = 'No face detected — ensure your face is visible and well-lit.';
+                        } else if (err.toLowerCase().includes('centered')) {
+                            hint = 'Face not centered — move closer to the middle of the frame.';
+                        } else if (err.toLowerCase().includes('small')) {
+                            hint = 'Face too small — move closer to the camera.';
+                        } else if (err.toLowerCase().includes('confidence') || err.toLowerCase().includes('quality')) {
+                            hint = 'Face quality too low — improve lighting and face the camera directly.';
+                        }
+                        throw new Error(hint);
                     }
                 } catch (e) {
-                    setEnrollMsg(`Capture error at sample ${i}: ${e.message}`, 'err');
+                    setEnrollMsg(`⚠ ${e.message}`, 'err');
                     btn.disabled = false;
                     await fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
+                    statusText.style.display = 'none';
+                    progressBar.style.width = '0%';
                     return;
                 }
 
@@ -2033,9 +2049,11 @@
             await fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
 
             statusText.textContent = 'Processing…';
+            setEnrollMsg('All samples collected. Processing biometric data…', '');
             await commitEnrollment(name, id);
             btn.disabled = false;
         }
+
 
         async function commitEnrollment(name, id) {
             const categories = [...document.querySelectorAll('#categoryGroup input[name="driverCategory"]:checked')]
@@ -2209,28 +2227,21 @@
         // Initialise the alert cursor to "now" so we don't replay old toasts
         // on every page load, but still show the alert panel for recent events.
         let _alertCursor = Date.now() / 1000;
-        const _panelAlerts = [];   // in-memory list for the panel (newest first)
 
         async function fetchAlerts() {
             try {
                 const res = await fetch('/api/alerts?since=' + _alertCursor + '&limit=10');
                 const list = await res.json();
                 if (!list.length) return;
-
                 // Advance cursor so next poll won't repeat these events
                 _alertCursor = Math.max(...list.map(a => a.unix_ts));
-
-                // Show a toast for each new event (they arrive newest-first)
-                list.forEach(a => {
-                    showToast(a);
-                    _panelAlerts.unshift(a);       // prepend to panel list
-                });
-
-                renderAlertPanel();
+                // Show a toast for each new unauthorized event
+                list.forEach(a => showToast(a));
             } catch (e) {
                 console.error('fetchAlerts error:', e);
             }
         }
+
 
         function showToast(a) {
             const time = new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -2285,49 +2296,6 @@
             el.addEventListener('animationend', () => el.remove(), { once: true });
         }
 
-        function renderAlertPanel() {
-            const panel = document.getElementById('alertPanel');
-            const list = document.getElementById('alertList');
-            const badge = document.getElementById('alertBadge');
-
-            if (!_panelAlerts.length) {
-                panel.style.display = 'none';
-                return;
-            }
-
-            panel.style.display = '';
-            badge.textContent = _panelAlerts.length > 99 ? '99+' : _panelAlerts.length;
-
-            list.innerHTML = _panelAlerts.slice(0, 15).map(a => {
-                const time = new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-
-                const thumbHtml = a.image_url
-                    ? `<img class="alert-row-thumb" src="${a.image_url}" alt=""
-                           onerror="this.outerHTML='<div class=alert-row-thumb-ph><i class=fas\\ fa-user-slash></i></div>'">`
-                    : `<div class="alert-row-thumb-ph"><i class="fas fa-user-slash"></i></div>`;
-
-                return `<div class="alert-row">
-                    ${thumbHtml}
-                    <div class="alert-row-info">
-                        <span class="alert-row-name">${a.driver_name}</span>
-                        <span class="alert-row-meta">
-                            Plate: <strong>${a.vehicle_plate || '—'}</strong>
-                            &bull; Owner: <strong>${a.owner_name || '—'}</strong>
-                            &bull; Liveness: <span style="color:${a.liveness ? 'var(--ok)' : 'var(--err)'}">${a.liveness ? 'Pass' : 'Fail'}</span>
-                        </span>
-                    </div>
-                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
-                        <span class="alert-row-score">${a.similarity.toFixed(4)}</span>
-                        <span class="alert-row-time">${time}</span>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-
-        function clearAlerts() {
-            _panelAlerts.length = 0;
-            renderAlertPanel();
-        }
 
         fetchDashboard();
         setInterval(fetchDashboard, 3000);

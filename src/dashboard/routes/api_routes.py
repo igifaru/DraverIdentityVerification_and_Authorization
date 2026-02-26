@@ -334,9 +334,14 @@ def enroll_capture_live():
     last_error = 'No face detected'
 
     for attempt in range(MAX_TRIES):
-        with engine._frame_lock:
-            frame = engine.latest_frame.copy() if engine.latest_frame is not None \
-                    else engine.video_stream.read_frame()
+        # Always read a FRESH raw frame directly from the video stream.
+        # engine.latest_frame may have verification overlays (banners, text)
+        # baked into it by the result handler, which would confuse face detection
+        # and show "No face detected" text on the enrollment preview.
+        frame = engine.video_stream.read_frame()
+        if frame is None:
+            with engine._frame_lock:
+                frame = engine.latest_frame.copy() if engine.latest_frame is not None else None
 
         if frame is None:
             return jsonify({'success': False, 'error': 'No video stream available'})

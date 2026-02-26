@@ -147,7 +147,7 @@ class FaceProcessor:
             Tuple of (is_valid, reason)
         """
         # Check confidence
-        if detection['confidence'] < 0.95:
+        if detection['confidence'] < 0.82:
             return False, f"Low confidence: {detection['confidence']:.2f}"
         
         # Check face size
@@ -192,7 +192,7 @@ class FaceProcessor:
             Tuple of (preprocessed_face, status_message)
         """
         # Detect face with lower threshold for enrollment (more permissive)
-        detection = self.detect_face(image, min_confidence=0.85)
+        detection = self.detect_face(image, min_confidence=0.75)
         
         if detection is None:
             return None, "No face detected"

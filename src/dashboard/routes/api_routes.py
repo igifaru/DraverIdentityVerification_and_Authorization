@@ -319,10 +319,8 @@ def update_driver(driver_id: int):
 def enroll_capture_live():
     """
     Capture a single frame from the live camera stream for enrollment preview.
-
-    The front-end polls this endpoint repeatedly while the user positions their
-    face.  We return the *original* (undistorted) frame so the UI can show it;
-    face detection happens later during /enroll/save.
+    Retries up to 4 times (600 ms apart) if no face is detected, to handle
+    camera warm-up lag and momentary detection misses.
     """
     engine = _get_engine()
 
@@ -330,24 +328,32 @@ def enroll_capture_live():
     if not engine.video_stream.is_running:
         print("[enroll/live] Starting camera on demand …")
         engine.start_camera()
-        time.sleep(1.0)  # Allow camera sensor to warm up
+        time.sleep(2.5)  # Allow camera sensor to fully warm up
 
-    with engine._frame_lock:
-        frame = engine.latest_frame.copy() if engine.latest_frame is not None \
-                else engine.video_stream.read_frame()
+    MAX_TRIES = 5
+    last_error = 'No face detected'
 
-    if frame is None:
-        return jsonify({'success': False, 'message': 'No video stream available'})
+    for attempt in range(MAX_TRIES):
+        with engine._frame_lock:
+            frame = engine.latest_frame.copy() if engine.latest_frame is not None \
+                    else engine.video_stream.read_frame()
 
-    # Validate that a face is detectable before sending the frame
-    preprocessed, status = engine.face_processor.process_for_enrollment(frame)
-    if preprocessed is None:
-        return jsonify({'error': status})
+        if frame is None:
+            return jsonify({'success': False, 'error': 'No video stream available'})
 
-    # Return the original frame (not the crop) so the UI renders the full view
-    _, buffer = cv2.imencode('.jpg', frame)
-    image_b64 = base64.b64encode(buffer).decode('utf-8')
-    return jsonify({'success': True, 'image': image_b64})
+        # Validate that a face is detectable
+        preprocessed, status = engine.face_processor.process_for_enrollment(frame)
+        if preprocessed is not None:
+            # Face found — return the original frame for preview
+            _, buffer = cv2.imencode('.jpg', frame)
+            image_b64 = base64.b64encode(buffer).decode('utf-8')
+            return jsonify({'success': True, 'image': image_b64})
+
+        last_error = status
+        print(f"[enroll/live] Attempt {attempt + 1}/{MAX_TRIES}: {status} — retrying…")
+        time.sleep(0.6)  # Wait 600 ms before next frame
+
+    return jsonify({'error': last_error})
 
 
 @api_bp.route('/enroll/save', methods=['POST'])

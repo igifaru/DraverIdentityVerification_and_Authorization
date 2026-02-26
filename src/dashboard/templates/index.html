@@ -1995,7 +1995,7 @@
 
             btn.disabled = true;
             enrollmentSamples = [];
-            setEnrollMsg('Initializing biometric capture…', '');
+            setEnrollMsg('Starting camera… please wait.', '');
 
             const statusText = document.getElementById('captureStatus');
             const progressBar = document.getElementById('captureProgress');
@@ -2005,6 +2005,7 @@
             for (let i = 1; i <= TOTAL_SAMPLES; i++) {
                 statusText.textContent = `Sample ${i} / ${TOTAL_SAMPLES}`;
                 progressBar.style.width = ((i / TOTAL_SAMPLES) * 100) + '%';
+                setEnrollMsg(`Capturing sample ${i} of ${TOTAL_SAMPLES} — look directly at the camera…`, '');
 
                 try {
                     const res = await fetch('/api/enroll/live', { method: 'POST' });
@@ -2016,13 +2017,28 @@
                         preview.src = 'data:image/jpeg;base64,' + data.image;
                         preview.style.display = 'block';
                         document.getElementById('enrollPlaceholder').style.display = 'none';
+                        setEnrollMsg(`Sample ${i} captured ✓`, 'ok');
                     } else {
-                        throw new Error(data.error || 'Capture returned no image');
+                        // Build a user-friendly hint from the server error
+                        const err = data.error || 'Capture returned no image';
+                        let hint = err;
+                        if (err.toLowerCase().includes('no face')) {
+                            hint = 'No face detected — ensure your face is visible and well-lit.';
+                        } else if (err.toLowerCase().includes('centered')) {
+                            hint = 'Face not centered — move closer to the middle of the frame.';
+                        } else if (err.toLowerCase().includes('small')) {
+                            hint = 'Face too small — move closer to the camera.';
+                        } else if (err.toLowerCase().includes('confidence') || err.toLowerCase().includes('quality')) {
+                            hint = 'Face quality too low — improve lighting and face the camera directly.';
+                        }
+                        throw new Error(hint);
                     }
                 } catch (e) {
-                    setEnrollMsg(`Capture error at sample ${i}: ${e.message}`, 'err');
+                    setEnrollMsg(`⚠ ${e.message}`, 'err');
                     btn.disabled = false;
                     await fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
+                    statusText.style.display = 'none';
+                    progressBar.style.width = '0%';
                     return;
                 }
 
@@ -2033,9 +2049,11 @@
             await fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
 
             statusText.textContent = 'Processing…';
+            setEnrollMsg('All samples collected. Processing biometric data…', '');
             await commitEnrollment(name, id);
             btn.disabled = false;
         }
+
 
         async function commitEnrollment(name, id) {
             const categories = [...document.querySelectorAll('#categoryGroup input[name="driverCategory"]:checked')]

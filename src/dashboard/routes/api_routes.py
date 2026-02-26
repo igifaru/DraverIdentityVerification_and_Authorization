@@ -87,37 +87,17 @@ def _decode_images(images_data: list) -> List[np.ndarray]:
 
 @api_bp.route('/status')
 def get_status():
-    """Return current system status, today's stats, and the latest result."""
+    """Return current system status for the dashboard engine chip."""
     engine = _get_engine()
-    stats = engine.db.get_daily_statistics()
-
-    payload = {
+    return jsonify({
         'system_status': 'active' if engine.is_running else 'stopped',
         'timestamp': time.time(),
-        'stats': stats,
         'system_info': {
-            'id':           config.system_id,
+            'id':            config.system_id,
             'vehicle_plate': config.vehicle_plate,
-            'owner_name':   config.owner_name,
+            'owner_name':    config.owner_name,
         },
-    }
-
-    if engine.latest_result:
-        r = engine.latest_result
-        payload['latest_verification'] = {
-            'authorized':      r['authorized'],
-            'driver_name':     r['driver_name'],
-            'similarity':      float(r['similarity_score']),
-            'message':         r.get('status_message', ''),
-            'liveness_passed': r['liveness_passed'],
-            'result_timestamp': r.get('result_timestamp', 0),
-        }
-
-    # Include recent log rows so the dashboard table needs no extra round-trip
-    recent = engine.db.get_recent_logs(limit=12)
-    payload['recent_logs'] = [log.to_dict() for log in recent]
-
-    return jsonify(payload)
+    })
 
 
 @api_bp.route('/alerts')
@@ -182,11 +162,6 @@ def serve_alert_image(log_id: int):
         return jsonify({'error': 'Image file missing on disk'}), 404
 
     return send_file(path, mimetype='image/jpeg')
-
-@api_bp.route('/statistics')
-def get_statistics():
-    """Return aggregate verification statistics."""
-    return jsonify(_get_engine().db.get_statistics())
 
 
 @api_bp.route('/audit', methods=['GET', 'DELETE'])

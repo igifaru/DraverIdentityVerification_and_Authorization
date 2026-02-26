@@ -81,10 +81,8 @@ def _generate_mjpeg(engine):
 def index():
     """Render the main admin dashboard."""
     engine = current_app.config['VERIFICATION_ENGINE']
-    stats  = engine.db.get_daily_statistics()
     return render_template(
         'index.html',
-        stats=stats,
         system_id=config.system_id,
         vehicle_plate=config.vehicle_plate,
         owner_name=config.owner_name,

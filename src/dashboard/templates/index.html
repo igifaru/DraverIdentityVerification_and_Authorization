@@ -2227,28 +2227,21 @@
         // Initialise the alert cursor to "now" so we don't replay old toasts
         // on every page load, but still show the alert panel for recent events.
         let _alertCursor = Date.now() / 1000;
-        const _panelAlerts = [];   // in-memory list for the panel (newest first)
 
         async function fetchAlerts() {
             try {
                 const res = await fetch('/api/alerts?since=' + _alertCursor + '&limit=10');
                 const list = await res.json();
                 if (!list.length) return;
-
                 // Advance cursor so next poll won't repeat these events
                 _alertCursor = Math.max(...list.map(a => a.unix_ts));
-
-                // Show a toast for each new event (they arrive newest-first)
-                list.forEach(a => {
-                    showToast(a);
-                    _panelAlerts.unshift(a);       // prepend to panel list
-                });
-
-                renderAlertPanel();
+                // Show a toast for each new unauthorized event
+                list.forEach(a => showToast(a));
             } catch (e) {
                 console.error('fetchAlerts error:', e);
             }
         }
+
 
         function showToast(a) {
             const time = new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -2303,49 +2296,6 @@
             el.addEventListener('animationend', () => el.remove(), { once: true });
         }
 
-        function renderAlertPanel() {
-            const panel = document.getElementById('alertPanel');
-            const list = document.getElementById('alertList');
-            const badge = document.getElementById('alertBadge');
-
-            if (!_panelAlerts.length) {
-                panel.style.display = 'none';
-                return;
-            }
-
-            panel.style.display = '';
-            badge.textContent = _panelAlerts.length > 99 ? '99+' : _panelAlerts.length;
-
-            list.innerHTML = _panelAlerts.slice(0, 15).map(a => {
-                const time = new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-
-                const thumbHtml = a.image_url
-                    ? `<img class="alert-row-thumb" src="${a.image_url}" alt=""
-                           onerror="this.outerHTML='<div class=alert-row-thumb-ph><i class=fas\\ fa-user-slash></i></div>'">`
-                    : `<div class="alert-row-thumb-ph"><i class="fas fa-user-slash"></i></div>`;
-
-                return `<div class="alert-row">
-                    ${thumbHtml}
-                    <div class="alert-row-info">
-                        <span class="alert-row-name">${a.driver_name}</span>
-                        <span class="alert-row-meta">
-                            Plate: <strong>${a.vehicle_plate || '—'}</strong>
-                            &bull; Owner: <strong>${a.owner_name || '—'}</strong>
-                            &bull; Liveness: <span style="color:${a.liveness ? 'var(--ok)' : 'var(--err)'}">${a.liveness ? 'Pass' : 'Fail'}</span>
-                        </span>
-                    </div>
-                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
-                        <span class="alert-row-score">${a.similarity.toFixed(4)}</span>
-                        <span class="alert-row-time">${time}</span>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-
-        function clearAlerts() {
-            _panelAlerts.length = 0;
-            renderAlertPanel();
-        }
 
         fetchDashboard();
         setInterval(fetchDashboard, 3000);

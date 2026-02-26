@@ -24,7 +24,6 @@ class Driver:
 
     # Category labels for display
     CATEGORY_LABELS = {
-        'A': 'Motorcycles & light vehicles',
         'B': 'Passenger cars (standard)',
         'C': 'Trucks / heavy goods vehicles',
         'D': 'Buses / passenger transport',
@@ -35,7 +34,7 @@ class Driver:
     def categories(self) -> list:
         """Return sorted list of category codes, e.g. ['A', 'B', 'C']"""
         if not self.category:
-            return ['A']
+            return ['B']
         return sorted(set(c.strip().upper() for c in self.category.split(',') if c.strip()))
 
     @property

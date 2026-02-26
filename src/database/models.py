@@ -78,11 +78,11 @@ class VerificationLog:
             'timestamp': self.timestamp.isoformat() if self.timestamp else None,
             'driver_id': self.driver_id,
             'driver_name': self.driver_name,
-            'similarity_score': self.similarity_score,
-            'authorized': self.authorized,
-            'processing_time_ms': self.processing_time_ms,
+            'similarity_score': float(self.similarity_score or 0),
+            'authorized': bool(self.authorized),
+            'processing_time_ms': float(self.processing_time_ms or 0),
             'image_path': self.image_path,
-            'liveness_passed': self.liveness_passed
+            'liveness_passed': bool(self.liveness_passed),
         }
     
     def to_csv_row(self) -> dict:

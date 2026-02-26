@@ -42,6 +42,14 @@ data/logs/*.csv
 data/alerts/captured_images/*
 !data/alerts/captured_images/.gitkeep
 
+# Enrollment photos (biometric data — never commit)
+data/alerts/enrollment_photos/*
+!data/alerts/enrollment_photos/.gitkeep
+
+# SQLite fallback database (project uses PostgreSQL)
+data/database/*.db
+data/database/*.sqlite*
+
 # IDE
 .vscode/
 .idea/

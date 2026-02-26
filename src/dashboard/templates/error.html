@@ -1,20 +1,19 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>500 - System Error</title>
+    <title>{{ code }} — {{ title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/errors.css') }}">
-
 </head>
 
 <body>
     <div class="container">
-        <h1>500</h1>
-        <h2>System Unavailable</h2>
-        <p>A critical system error occurred. Administrators have been notified.</p>
-        <a href="/">Try Again</a>
+        <h1>{{ code }}</h1>
+        <h2>{{ title }}</h2>
+        <p>{{ message }}</p>
+        <a href="/">{{ link_label }}</a>
     </div>
 </body>
 

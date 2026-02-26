@@ -68,11 +68,23 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------ #
     @app.errorhandler(404)
     def not_found(e):
-        return render_template('404.html'), 404
+        return render_template(
+            'error.html',
+            code=404,
+            title='Page Not Found',
+            message="The page you are looking for doesn't exist or has been moved.",
+            link_label='Return to Dashboard',
+        ), 404
 
     @app.errorhandler(500)
     def server_error(e):
-        return render_template('500.html'), 500
+        return render_template(
+            'error.html',
+            code=500,
+            title='System Unavailable',
+            message='A critical system error occurred. Administrators have been notified.',
+            link_label='Try Again',
+        ), 500
 
     return app
 

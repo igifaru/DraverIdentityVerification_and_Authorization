@@ -82,6 +82,94 @@ def _decode_images(images_data: list) -> List[np.ndarray]:
 
 
 # ---------------------------------------------------------------------------
+# Driver terminal endpoints  (public — no login required)
+# ---------------------------------------------------------------------------
+
+@api_bp.route('/driver/detect')
+def driver_detect():
+    """
+    Fast face-presence check for the driver terminal idle state.
+
+    Reads the current camera frame and runs MTCNN detection only
+    (no embedding generation → ~50 ms).  The driver terminal polls
+    this every 800 ms to know when a face enters the frame.
+
+    Returns:
+        {face_present: bool, confidence: float}
+    """
+    engine = _get_engine()
+
+    # Auto-start camera if needed
+    if not engine.video_stream.is_running:
+        engine.start_camera()
+
+    frame = engine.video_stream.read_frame()
+    if frame is None:
+        return jsonify({'face_present': False, 'confidence': 0.0})
+
+    # Fast MTCNN detection only — no quality check, no embedding
+    detection = engine.face_processor.detect_face(frame, min_confidence=0.75)
+    if detection is None:
+        return jsonify({'face_present': False, 'confidence': 0.0})
+
+    return jsonify({
+        'face_present': True,
+        'confidence':   round(float(detection['confidence']), 3),
+    })
+
+
+@api_bp.route('/driver/verify', methods=['POST'])
+def driver_verify():
+    """
+    Full verification pipeline for the driver terminal.
+
+    Called by the driver terminal after a face has been stably detected
+    for 2 seconds.  Reads the freshest camera frame, runs the complete
+    pipeline (CLAHE → MTCNN → FaceNet → cosine match) and returns
+    the result.
+
+    Returns:
+        {
+          state:        'authorized' | 'unauthorized' | 'no_face',
+          driver_name:  str | null,
+          similarity:   float,
+          event_id:     int | null,
+        }
+    """
+    engine = _get_engine()
+
+    if not engine.video_stream.is_running:
+        engine.start_camera()
+        time.sleep(0.5)
+
+    frame = engine.video_stream.read_frame()
+    if frame is None:
+        return jsonify({'state': 'no_face', 'driver_name': None,
+                        'similarity': 0.0, 'event_id': None})
+
+    success, result = engine.verify_frame(frame, check_liveness=False)
+
+    if not success:
+        return jsonify({'state': 'no_face', 'driver_name': None,
+                        'similarity': 0.0, 'event_id': None})
+
+    # Log the verification to DB
+    engine.log_verification(result)
+
+    # Trigger alert for unauthorized
+    if not result['authorized']:
+        engine._trigger_alert(result)
+
+    state = 'authorized' if result['authorized'] else 'unauthorized'
+    return jsonify({
+        'state':       state,
+        'driver_name': result.get('driver_name'),
+        'similarity':  round(float(result.get('similarity_score', 0.0)), 4),
+        'event_id':    result.get('log_id'),
+    })
+
+
+# ---------------------------------------------------------------------------
 # Status & Statistics
 # ---------------------------------------------------------------------------
 

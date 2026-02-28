@@ -1,19 +1,20 @@
 ﻿/* ================================================================
    driver.css — Driver Verification Terminal
-   Fullscreen camera · Face-guide oval · Unauthorized-only alert
+   State-driven via  body[data-state="idle|detecting|processing|authorized|unauthorized"]
    ================================================================ */
 
 :root {
     --blue: #4cc9f0;
-    --blue-dim: rgba(76, 201, 240, 0.55);
+    --purple: #7b2ff7;
+    --green: #2ecc71;
     --red: #e63946;
-    --red-glow: rgba(230, 57, 70, 0.6);
-    --white: #ffffff;
+    --text: #ffffff;
+    --dim: rgba(255, 255, 255, 0.35);
     --black: #000000;
-    --glass: rgba(5, 8, 18, 0.72);
+    --glass: rgba(6, 8, 20, 0.80);
 }
 
-/* ---- Reset ---- */
+/* ── Reset ── */
 *,
 *::before,
 *::after {
@@ -28,12 +29,12 @@ body {
     overflow: hidden;
     background: var(--black);
     font-family: 'Inter', sans-serif;
-    color: var(--white);
+    color: var(--text);
     -webkit-font-smoothing: antialiased;
 }
 
 /* ================================================================
-   LAYER 1 — Camera feed (fills entire viewport)
+   LAYER 1 — Camera feed
    ================================================================ */
 #videoFeed {
     position: fixed;
@@ -44,12 +45,20 @@ body {
     transform: scaleX(-1);
     /* mirror — natural for driver */
     z-index: 1;
+    transition: filter 0.5s ease;
+}
+
+/* Blur camera during processing / result */
+body[data-state="processing"] #videoFeed,
+body[data-state="authorized"] #videoFeed,
+body[data-state="unauthorized"] #videoFeed {
+    filter: blur(8px) brightness(0.4);
 }
 
 /* ================================================================
-   LAYER 2 — Scanning / guide overlay
+   LAYER 2 — Face guide (visible ONLY in idle + detecting)
    ================================================================ */
-.scan-layer {
+.guide-layer {
     position: fixed;
     inset: 0;
     z-index: 10;
@@ -58,9 +67,17 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+
+    opacity: 1;
+    transition: opacity 0.4s ease;
 }
 
-/* Full-viewport SVG so the oval scales with screen size */
+body[data-state="processing"] .guide-layer,
+body[data-state="authorized"] .guide-layer,
+body[data-state="unauthorized"] .guide-layer {
+    opacity: 0;
+}
+
 .guide-svg {
     position: absolute;
     inset: 0;
@@ -68,115 +85,123 @@ body {
     height: 100%;
 }
 
-/* ---- Animated scan sweep line (clips inside the oval area via JS/CSS) ---- */
-.sweep-line {
-    position: absolute;
-    left: 50%;
-    width: 2px;
-    /* vertical line — rotated below */
-    /* We use a horizontal line sweeping top-to-bottom inside the oval region */
-    height: 44%;
-    /* matches oval height roughly */
-    top: 50%;
-    transform: translate(-50%, -56%) scaleX(55%);
-    background: linear-gradient(to bottom,
-            transparent 0%,
-            var(--blue-dim) 40%,
-            var(--blue) 50%,
-            var(--blue-dim) 60%,
-            transparent 100%);
-    width: 40%;
-    /* horizontal sweep bar */
-    height: 2px;
-    animation: sweepDown 2.8s ease-in-out infinite;
-    opacity: 0.7;
+/* Oval ring animation: normal = static blue/purple, detecting = pulse */
+#guideOval {
+    transition: stroke 0.4s;
 }
 
-@keyframes sweepDown {
+body[data-state="detecting"] #guideOval {
+    animation: ovalPulse 0.7s ease-in-out infinite alternate;
+}
+
+@keyframes ovalPulse {
+    from {
+        stroke-width: 0.5;
+        opacity: 0.7;
+    }
+
+    to {
+        stroke-width: 1.0;
+        opacity: 1.0;
+    }
+}
+
+/* Sweep line */
+.sweep {
+    position: absolute;
+    left: 50%;
+    width: 42%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--blue), transparent);
+    top: 50%;
+    transform: translate(-50%, -52%);
+    animation: sweepY 2.5s ease-in-out infinite;
+    opacity: 0.8;
+}
+
+@keyframes sweepY {
     0% {
-        transform: translate(-50%, -56%) translateY(0px);
-        opacity: 0.3;
+        transform: translate(-50%, -52%) translateY(-70px);
+        opacity: 0.2;
     }
 
-    10% {
-        opacity: 0.9;
-    }
-
-    90% {
-        opacity: 0.9;
+    50% {
+        opacity: 0.95;
     }
 
     100% {
-        transform: translate(-50%, -56%) translateY(154px);
-        opacity: 0.3;
+        transform: translate(-50%, -52%) translateY(70px);
+        opacity: 0.2;
     }
 }
 
-/* ---- Corner brackets ---- */
+/* Corner brackets */
 .bracket {
     position: absolute;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-color: var(--blue);
     border-style: solid;
     border-width: 0;
     opacity: 0.85;
+    transition: border-color 0.3s;
 }
 
-/* Position each bracket at the edges of the oval area */
-/* Oval occupies roughly center 44% wide × 56% tall of screen */
+body[data-state="detecting"] .bracket {
+    border-color: #2ecc71;
+}
+
 .bracket.tl {
-    top: calc(50% - 28% - 14px);
-    left: calc(50% - 22% - 14px);
+    top: calc(50% - 30% - 13px);
+    left: calc(50% - 23% - 13px);
     border-top-width: 3px;
     border-left-width: 3px;
     border-radius: 4px 0 0 0;
 }
 
 .bracket.tr {
-    top: calc(50% - 28% - 14px);
-    right: calc(50% - 22% - 14px);
+    top: calc(50% - 30% - 13px);
+    right: calc(50% - 23% - 13px);
     border-top-width: 3px;
     border-right-width: 3px;
     border-radius: 0 4px 0 0;
 }
 
 .bracket.bl {
-    bottom: calc(50% - 28% - 14px);
-    left: calc(50% - 22% - 14px);
+    bottom: calc(50% - 30% - 13px);
+    left: calc(50% - 23% - 13px);
     border-bottom-width: 3px;
     border-left-width: 3px;
     border-radius: 0 0 0 4px;
 }
 
 .bracket.br {
-    bottom: calc(50% - 28% - 14px);
-    right: calc(50% - 22% - 14px);
+    bottom: calc(50% - 30% - 13px);
+    right: calc(50% - 23% - 13px);
     border-bottom-width: 3px;
     border-right-width: 3px;
     border-radius: 0 0 4px 0;
 }
 
-/* ---- Guide label below the oval ---- */
-.guide-label {
+/* Instruction hint */
+.guide-hint {
     position: absolute;
-    bottom: calc(50% - 30%);
+    bottom: calc(50% - 32%);
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.5rem, 1.1vw, 0.68rem);
+    letter-spacing: 4px;
+    color: rgba(76, 201, 240, 0.75);
     display: flex;
     align-items: center;
     gap: 10px;
-    font-family: 'Orbitron', sans-serif;
-    font-size: clamp(0.55rem, 1.2vw, 0.72rem);
-    letter-spacing: 4px;
-    color: var(--blue-dim);
-    text-transform: uppercase;
-    animation: labelBlink 3s ease-in-out infinite;
+    animation: hintFade 2.5s ease-in-out infinite;
 }
 
-@keyframes labelBlink {
+@keyframes hintFade {
 
     0%,
     100% {
-        opacity: 0.5;
+        opacity: 0.4;
     }
 
     50% {
@@ -184,29 +209,384 @@ body {
     }
 }
 
-.guide-dot {
-    display: inline-block;
+.blink-dot {
     width: 5px;
     height: 5px;
     border-radius: 50%;
     background: var(--blue);
-    opacity: 0.7;
+    animation: hintFade 1.2s linear infinite;
 }
 
 /* ================================================================
-   LAYER 3 — HUD Header
+   LAYER 3 — Detecting overlay (countdown)
+   ================================================================ */
+.detecting-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+body[data-state="detecting"] .detecting-layer {
+    opacity: 1;
+}
+
+/* Pulsing ring around face */
+.detecting-ring {
+    width: 260px;
+    height: 320px;
+    border: 3px solid #2ecc71;
+    border-radius: 50%;
+    box-shadow: 0 0 30px rgba(46, 204, 113, 0.5), inset 0 0 30px rgba(46, 204, 113, 0.1);
+    animation: ringPulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes ringPulse {
+    from {
+        box-shadow: 0 0 20px rgba(46, 204, 113, 0.3);
+    }
+
+    to {
+        box-shadow: 0 0 50px rgba(46, 204, 113, 0.8), inset 0 0 20px rgba(46, 204, 113, 0.2);
+    }
+}
+
+.detecting-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.6rem, 1.4vw, 0.78rem);
+    letter-spacing: 4px;
+    color: #2ecc71;
+    text-shadow: 0 0 12px rgba(46, 204, 113, 0.8);
+}
+
+/* Countdown progress bar */
+.countdown-track {
+    width: 260px;
+    height: 4px;
+    background: rgba(46, 204, 113, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.countdown-bar {
+    height: 100%;
+    background: #2ecc71;
+    box-shadow: 0 0 8px #2ecc71;
+    width: 0%;
+    transition: width linear;
+}
+
+/* ================================================================
+   LAYER 4 — Processing spinner
+   ================================================================ */
+.processing-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+body[data-state="processing"] .processing-layer {
+    opacity: 1;
+}
+
+.spinner-ring {
+    width: 90px;
+    height: 90px;
+}
+
+.spinner-ring svg {
+    animation: spin 1s linear infinite;
+    filter: drop-shadow(0 0 10px var(--blue));
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.processing-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.6rem, 1.4vw, 0.75rem);
+    letter-spacing: 5px;
+    color: var(--blue);
+    text-shadow: 0 0 10px rgba(76, 201, 240, 0.6);
+    animation: hintFade 1.2s ease-in-out infinite;
+}
+
+/* ================================================================
+   LAYER 5 — Result overlay
+   ================================================================ */
+.result-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+}
+
+body[data-state="authorized"] .result-layer,
+body[data-state="unauthorized"] .result-layer {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Both cards share base styles */
+.result-card {
+    text-align: center;
+    padding: 52px 76px;
+    border-radius: 20px;
+    backdrop-filter: blur(20px) saturate(1.4);
+    max-width: 540px;
+    width: 90%;
+    display: none;
+    /* shown via state */
+}
+
+/* Authorized card */
+#cardAuth {
+    border: 1.5px solid rgba(46, 204, 113, 0.45);
+    background: rgba(3, 20, 10, 0.85);
+    animation: cardGlowGreen 2s ease-in-out infinite;
+}
+
+@keyframes cardGlowGreen {
+
+    0%,
+    100% {
+        box-shadow: 0 0 40px rgba(46, 204, 113, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 70px rgba(46, 204, 113, 0.5);
+    }
+}
+
+/* Unauthorized card */
+#cardDenied {
+    position: relative;
+    border: 1.5px solid rgba(230, 57, 70, 0.45);
+    background: rgba(20, 3, 5, 0.85);
+    animation: cardGlowRed 1.4s ease-in-out infinite;
+}
+
+@keyframes cardGlowRed {
+
+    0%,
+    100% {
+        box-shadow: 0 0 40px rgba(230, 57, 70, 0.25);
+    }
+
+    50% {
+        box-shadow: 0 0 80px rgba(230, 57, 70, 0.6);
+    }
+}
+
+/* State-driven card visibility */
+body[data-state="authorized"] #cardAuth {
+    display: block;
+}
+
+body[data-state="unauthorized"] #cardDenied {
+    display: block;
+}
+
+/* Screen-edge bars on denied */
+.edge {
+    position: fixed;
+    background: var(--red);
+    animation: edgeFlash 0.9s ease-in-out infinite;
+    opacity: 0;
+}
+
+body[data-state="unauthorized"] .edge {
+    opacity: 1;
+}
+
+@keyframes edgeFlash {
+
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+.edge.top {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+}
+
+.edge.bottom {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+}
+
+.edge.left {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 5px;
+}
+
+.edge.right {
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 5px;
+}
+
+/* Icons */
+.result-icon {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 22px;
+}
+
+.auth-icon svg {
+    width: 80px;
+    height: 80px;
+    filter: drop-shadow(0 0 16px rgba(46, 204, 113, 0.8));
+}
+
+.denied-icon svg {
+    width: 80px;
+    height: 80px;
+    filter: drop-shadow(0 0 16px rgba(230, 57, 70, 0.8));
+    animation: iconShake 0.5s ease-in-out 3;
+}
+
+@keyframes iconShake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-5px);
+    }
+
+    75% {
+        transform: translateX(5px);
+    }
+}
+
+/* Text */
+.result-headline {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.5rem, 3.5vw, 2.4rem);
+    font-weight: 900;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+
+.result-headline.auth {
+    color: var(--green);
+    text-shadow: 0 0 20px rgba(46, 204, 113, 0.6);
+}
+
+.result-headline.denied {
+    color: var(--red);
+    text-shadow: 0 0 20px rgba(230, 57, 70, 0.6);
+}
+
+.result-name {
+    font-size: clamp(1rem, 2.2vw, 1.4rem);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 8px;
+    min-height: 1.6rem;
+}
+
+.result-meta {
+    font-size: 0.78rem;
+    color: var(--dim);
+    letter-spacing: 1px;
+    margin-bottom: 28px;
+}
+
+.result-sub {
+    font-size: 1rem;
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+}
+
+.alert-note {
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    color: rgba(230, 57, 70, 0.8);
+    margin-bottom: 28px;
+}
+
+/* Auto-reset timer bar */
+.timer-track {
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.timer-bar {
+    height: 100%;
+    width: 100%;
+    transform-origin: left;
+}
+
+.timer-bar {
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+}
+
+.timer-bar.denied {
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red);
+}
+
+/* ================================================================
+   LAYER 6 — HUD Header (always visible)
    ================================================================ */
 .hud-header {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    z-index: 20;
+    z-index: 100;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 14px 28px;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75) 0%, transparent 100%);
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, transparent 100%);
     pointer-events: none;
 }
 
@@ -216,51 +596,64 @@ body {
     gap: 10px;
 }
 
-.hud-logo {
-    font-size: 1.2rem;
+.logo-icon {
+    font-size: 1.3rem;
     color: var(--blue);
-    animation: spin 8s linear infinite;
     display: inline-block;
+    animation: spinSlow 10s linear infinite;
 }
 
-@keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-
+@keyframes spinSlow {
     to {
         transform: rotate(360deg);
     }
 }
 
-.hud-name {
+.hud-title {
     font-family: 'Orbitron', sans-serif;
-    font-size: clamp(0.55rem, 1.5vw, 0.78rem);
+    font-size: clamp(0.5rem, 1.4vw, 0.74rem);
     letter-spacing: 4px;
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(255, 255, 255, 0.6);
     text-transform: uppercase;
 }
 
-.hud-status {
+.hud-right {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-/* LED dot */
-.status-led {
+.state-led {
     width: 9px;
     height: 9px;
     border-radius: 50%;
     background: var(--blue);
     box-shadow: 0 0 8px var(--blue);
-    animation: ledPulse 1.5s ease-in-out infinite;
-    transition: background 0.4s, box-shadow 0.4s;
+    animation: ledPulse 1.8s ease-in-out infinite;
+    transition: background 0.3s, box-shadow 0.3s;
 }
 
-.status-led.denied {
+body[data-state="detecting"] .state-led {
+    background: #2ecc71;
+    box-shadow: 0 0 10px #2ecc71;
+}
+
+body[data-state="processing"] .state-led {
+    background: var(--blue);
+    box-shadow: 0 0 12px var(--blue);
+    animation: ledPulse 0.5s ease-in-out infinite;
+}
+
+body[data-state="authorized"] .state-led {
+    background: #2ecc71;
+    box-shadow: 0 0 14px #2ecc71;
+    animation: none;
+}
+
+body[data-state="unauthorized"] .state-led {
     background: var(--red);
-    box-shadow: 0 0 12px var(--red-glow);
+    box-shadow: 0 0 14px var(--red);
+    animation: ledPulse 0.5s ease-in-out infinite;
 }
 
 @keyframes ledPulse {
@@ -277,210 +670,51 @@ body {
     }
 }
 
-.status-word {
+.state-word {
     font-family: 'Orbitron', sans-serif;
-    font-size: clamp(0.5rem, 1.2vw, 0.68rem);
+    font-size: clamp(0.45rem, 1.1vw, 0.65rem);
     letter-spacing: 3px;
-    color: var(--blue-dim);
+    color: rgba(76, 201, 240, 0.7);
     text-transform: uppercase;
-    transition: color 0.4s;
-    min-width: 80px;
+    transition: color 0.3s;
+    min-width: 90px;
     text-align: right;
 }
 
-.status-word.denied {
+body[data-state="detecting"] .state-word {
+    color: #2ecc71;
+}
+
+body[data-state="authorized"] .state-word {
+    color: #2ecc71;
+}
+
+body[data-state="unauthorized"] .state-word {
     color: var(--red);
 }
 
 /* ================================================================
-   LAYER 4 — Footer
+   LAYER 7 — Footer (always visible)
    ================================================================ */
 .hud-footer {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 20;
+    z-index: 100;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
-    padding: 12px 24px;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
+    padding: 10px 24px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, transparent 100%);
     font-family: 'Orbitron', sans-serif;
-    font-size: clamp(0.45rem, 1vw, 0.62rem);
+    font-size: clamp(0.42rem, 0.95vw, 0.58rem);
     letter-spacing: 3px;
-    color: rgba(255, 255, 255, 0.22);
+    color: rgba(255, 255, 255, 0.2);
     pointer-events: none;
 }
 
 .hud-footer .sep {
     margin: 0 14px;
-    opacity: 0.4;
-}
-
-/* ================================================================
-   LAYER 5 — ACCESS DENIED overlay (shown only on unauthorized)
-   ================================================================ */
-.alert-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.88);
-
-    /* Hidden state */
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-}
-
-.alert-overlay.visible {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-/* ---- Screen-edge red glow bars ---- */
-.glow-bar {
-    position: absolute;
-    background: var(--red);
-    opacity: 0;
-    transition: opacity 0.3s;
-    animation: barFlash 0.9s ease-in-out infinite;
-}
-
-.alert-overlay.visible .glow-bar {
-    opacity: 1;
-}
-
-.glow-bar.top {
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-}
-
-.glow-bar.bottom {
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-}
-
-.glow-bar.left {
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-}
-
-.glow-bar.right {
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-}
-
-@keyframes barFlash {
-
-    0%,
-    100% {
-        opacity: 0.4;
-    }
-
-    50% {
-        opacity: 1;
-        box-shadow: 0 0 20px var(--red-glow);
-    }
-}
-
-/* ---- Alert card ---- */
-.alert-card {
-    position: relative;
-    text-align: center;
-    padding: 52px 80px;
-    border: 1.5px solid rgba(230, 57, 70, 0.5);
-    border-radius: 18px;
-    background: rgba(8, 0, 2, 0.82);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    max-width: 560px;
-    width: 90%;
-    animation: cardPulse 1.6s ease-in-out infinite;
-}
-
-@keyframes cardPulse {
-
-    0%,
-    100% {
-        box-shadow: 0 0 40px rgba(230, 57, 70, 0.25), 0 0 80px rgba(230, 57, 70, 0.08);
-    }
-
-    50% {
-        box-shadow: 0 0 70px rgba(230, 57, 70, 0.55), 0 0 140px rgba(230, 57, 70, 0.2);
-    }
-}
-
-/* ---- SVG X icon ---- */
-.alert-icon-wrap {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 24px;
-}
-
-.alert-svg {
-    width: 72px;
-    height: 72px;
-    filter: drop-shadow(0 0 16px rgba(230, 57, 70, 0.8));
-    animation: iconPop 1.6s ease-in-out infinite;
-}
-
-@keyframes iconPop {
-
-    0%,
-    100% {
-        transform: scale(1);
-        filter: drop-shadow(0 0 14px rgba(230, 57, 70, 0.7));
-    }
-
-    50% {
-        transform: scale(1.07);
-        filter: drop-shadow(0 0 28px rgba(230, 57, 70, 1));
-    }
-}
-
-.alert-headline {
-    font-family: 'Orbitron', sans-serif;
-    font-size: clamp(1.8rem, 4vw, 2.8rem);
-    font-weight: 900;
-    letter-spacing: 8px;
-    color: var(--red);
-    text-shadow: 0 0 24px rgba(230, 57, 70, 0.7);
-    text-transform: uppercase;
-    margin-bottom: 14px;
-}
-
-.alert-sub {
-    font-size: clamp(0.9rem, 2vw, 1.05rem);
-    font-weight: 300;
-    color: rgba(255, 255, 255, 0.75);
-    letter-spacing: 1.5px;
-    margin-bottom: 28px;
-}
-
-.alert-divider {
-    width: 60px;
-    height: 1px;
-    background: rgba(230, 57, 70, 0.4);
-    margin: 0 auto 20px;
-}
-
-.alert-action {
-    font-size: 0.72rem;
-    letter-spacing: 2px;
-    color: rgba(255, 255, 255, 0.3);
-    text-transform: uppercase;
-    font-family: 'Orbitron', sans-serif;
+    opacity: 0.35;
 }

@@ -11,90 +11,132 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/driver.css') }}">
 </head>
 
-<body>
+<body data-state="idle">
 
-    <!-- Layer 1: Full-viewport live camera feed -->
-    <img id="videoFeed" src="{{ url_for('main.video_feed') }}" alt="Live Camera Feed">
+    <!-- ══ LAYER 1: Live camera feed ══ -->
+    <img id="videoFeed" src="{{ url_for('main.video_feed') }}" alt="Camera Feed">
 
-    <!-- Layer 2: Scanning overlay (face guide + corner brackets + scan line) -->
-    <div class="scan-layer" id="scanLayer" aria-hidden="true">
-
-        <!-- Horizontal scanning line that sweeps through the oval -->
-        <div class="sweep-line" id="sweepLine"></div>
-
-        <!-- SVG face guide: oval + corner brackets -->
-        <svg class="guide-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"
-            xmlns="http://www.w3.org/2000/svg">
-            <!-- Darken everything outside the oval -->
+    <!-- ══ LAYER 2: Face guide (IDLE state only) ══ -->
+    <div class="guide-layer" id="guideLayer" aria-hidden="true">
+        <svg class="guide-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
             <defs>
                 <mask id="ovalMask">
                     <rect width="100" height="100" fill="white" />
-                    <ellipse cx="50" cy="48" rx="22" ry="28" fill="black" />
+                    <ellipse cx="50" cy="48" rx="24" ry="30" fill="black" />
                 </mask>
+                <!-- Gradient for the oval ring -->
+                <linearGradient id="ovalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#4cc9f0" />
+                    <stop offset="100%" stop-color="#7b2ff7" />
+                </linearGradient>
             </defs>
-            <rect width="100" height="100" fill="rgba(0,0,0,0.45)" mask="url(#ovalMask)" />
-            <!-- Oval guide ring -->
-            <ellipse id="guideOval" cx="50" cy="48" rx="22" ry="28" fill="none" stroke="#4cc9f0" stroke-width="0.4"
-                opacity="0.9" />
+            <!-- Vignette surround -->
+            <rect width="100" height="100" fill="rgba(0,0,0,0.5)" mask="url(#ovalMask)" />
+            <!-- Oval ring -->
+            <ellipse id="guideOval" cx="50" cy="48" rx="24" ry="30" fill="none" stroke="url(#ovalGrad)"
+                stroke-width="0.5" />
         </svg>
 
-        <!-- Corner brackets (absolute CSS) -->
-        <div class="bracket tl"></div>
-        <div class="bracket tr"></div>
-        <div class="bracket bl"></div>
-        <div class="bracket br"></div>
+        <!-- Sweep line inside the oval -->
+        <div class="sweep" id="sweepLine"></div>
 
-        <!-- Instruction text below the oval -->
-        <div class="guide-label" id="guideLabel">
-            <span class="guide-dot"></span>
-            ALIGN FACE IN FRAME
-            <span class="guide-dot"></span>
+        <!-- Corner brackets -->
+        <span class="bracket tl"></span>
+        <span class="bracket tr"></span>
+        <span class="bracket bl"></span>
+        <span class="bracket br"></span>
+
+        <!-- Instruction below oval -->
+        <div class="guide-hint" id="guideHint">
+            <span class="blink-dot"></span>
+            POSITION YOUR FACE IN THE FRAME
+            <span class="blink-dot"></span>
         </div>
     </div>
 
-    <!-- Layer 3: Header bar -->
+    <!-- ══ LAYER 3: Detecting overlay (DETECTING state — countdown bar) ══ -->
+    <div class="detecting-layer" id="detectingLayer">
+        <div class="detecting-ring"></div>
+        <div class="detecting-label">FACE DETECTED — VERIFYING</div>
+        <div class="countdown-track">
+            <div class="countdown-bar" id="countdownBar"></div>
+        </div>
+    </div>
+
+    <!-- ══ LAYER 4: Processing overlay (PROCESSING state) ══ -->
+    <div class="processing-layer" id="processingLayer">
+        <div class="spinner-ring">
+            <svg viewBox="0 0 48 48">
+                <circle cx="24" cy="24" r="20" fill="none" stroke="#4cc9f0" stroke-width="3" stroke-dasharray="80 45"
+                    stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="processing-label">ANALYZING BIOMETRIC DATA</div>
+    </div>
+
+    <!-- ══ LAYER 5: Result overlay (AUTHORIZED / UNAUTHORIZED) ══ -->
+    <div class="result-layer" id="resultLayer">
+        <!-- Green: authorized -->
+        <div class="result-card" id="cardAuth">
+            <div class="result-icon auth-icon">
+                <svg viewBox="0 0 48 48" fill="none">
+                    <circle cx="24" cy="24" r="22" stroke="#2ecc71" stroke-width="2" />
+                    <polyline points="13,25 21,33 35,16" stroke="#2ecc71" stroke-width="3" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
+            </div>
+            <div class="result-headline auth">DRIVER VERIFIED</div>
+            <div class="result-name" id="driverName"></div>
+            <div class="result-meta" id="authMeta"></div>
+            <!-- Auto-reset timer bar -->
+            <div class="timer-track">
+                <div class="timer-bar" id="authTimer"></div>
+            </div>
+        </div>
+
+        <!-- Red: unauthorized -->
+        <div class="result-card" id="cardDenied">
+            <!-- Screen-edge glow bars -->
+            <span class="edge top"></span>
+            <span class="edge bottom"></span>
+            <span class="edge left"></span>
+            <span class="edge right"></span>
+            <div class="result-icon denied-icon">
+                <svg viewBox="0 0 48 48" fill="none">
+                    <circle cx="24" cy="24" r="22" stroke="#e63946" stroke-width="2" />
+                    <line x1="15" y1="15" x2="33" y2="33" stroke="#e63946" stroke-width="3" stroke-linecap="round" />
+                    <line x1="33" y1="15" x2="15" y2="33" stroke="#e63946" stroke-width="3" stroke-linecap="round" />
+                </svg>
+            </div>
+            <div class="result-headline denied">DRIVER NOT RECOGNIZED</div>
+            <div class="result-sub">Unauthorized access attempt</div>
+            <div class="alert-note">⚡ Alert sent to administrator</div>
+            <div class="timer-track">
+                <div class="timer-bar denied" id="deniedTimer"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ LAYER 6: HUD header (always visible) ══ -->
     <header class="hud-header">
         <div class="hud-brand">
-            <span class="hud-logo">◈</span>
-            <span class="hud-name">BIOMETRIC IDENTITY VERIFICATION</span>
+            <span class="logo-icon">◈</span>
+            <span class="hud-title">BIOMETRIC IDENTITY VERIFICATION</span>
         </div>
-        <div class="hud-status">
-            <span class="status-led" id="statusLed"></span>
-            <span class="status-word" id="statusWord">SCANNING</span>
+        <div class="hud-right">
+            <span class="state-led" id="stateLed"></span>
+            <span class="state-word" id="stateWord">IDLE</span>
         </div>
     </header>
 
-    <!-- Layer 4: Footer watermark -->
+    <!-- ══ LAYER 7: footer (always visible) ══ -->
     <footer class="hud-footer">
         <span>{{ system_id }}</span>
         <span class="sep">·</span>
         <span>{{ vehicle_plate }}</span>
         <span class="sep">·</span>
-        <span id="clockDisplay"></span>
+        <span id="clockEl"></span>
     </footer>
-
-    <!-- Layer 5: UNAUTHORIZED alert overlay (hidden, shown only on denial) -->
-    <div class="alert-overlay" id="alertOverlay" role="alert" aria-live="assertive">
-        <!-- Red screen-edge glow bars -->
-        <div class="glow-bar top"></div>
-        <div class="glow-bar bottom"></div>
-        <div class="glow-bar left"></div>
-        <div class="glow-bar right"></div>
-
-        <div class="alert-card">
-            <div class="alert-icon-wrap">
-                <svg viewBox="0 0 24 24" fill="none" class="alert-svg">
-                    <circle cx="12" cy="12" r="11" stroke="#e63946" stroke-width="1.5" />
-                    <line x1="8" y1="8" x2="16" y2="16" stroke="#e63946" stroke-width="2" stroke-linecap="round" />
-                    <line x1="16" y1="8" x2="8" y2="16" stroke="#e63946" stroke-width="2" stroke-linecap="round" />
-                </svg>
-            </div>
-            <div class="alert-headline">ACCESS DENIED</div>
-            <div class="alert-sub" id="alertSub">Unauthorized driver detected</div>
-            <div class="alert-divider"></div>
-            <div class="alert-action">Alert sent to administrator</div>
-        </div>
-    </div>
 
     <script src="{{ url_for('static', filename='js/driver.js') }}"></script>
 </body>

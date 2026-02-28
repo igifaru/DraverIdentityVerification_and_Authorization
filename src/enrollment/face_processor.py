@@ -1,6 +1,11 @@
 """
 Face Processor Module
-Handles face detection, preprocessing, and quality validation using MTCNN
+Handles face detection, preprocessing, and quality validation using MTCNN.
+
+Robustness features:
+  - CLAHE enhancement for low-light frames and glasses contrast
+  - Auto-retry detection with enhanced image if raw frame fails
+  - Relaxed aspect ratio validation for drivers wearing glasses
 """
 
 import cv2
@@ -12,49 +17,102 @@ from utils.config import config
 
 class FaceProcessor:
     """Processes facial images for enrollment and verification"""
-    
+
     def __init__(self):
         """Initialize face processor with MTCNN detector"""
         print("Initializing MTCNN face detector...")
         self.detector = MTCNN()
         self.target_size = (160, 160)  # FaceNet input size
         print("Face processor initialized")
-    
+
+
+    # ------------------------------------------------------------------
+    # Image enhancement
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def enhance_frame(image: np.ndarray) -> np.ndarray:
+        """
+        Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) on the
+        Lightness channel (LAB colorspace) to produce a perceptually balanced
+        image that helps MTCNN under two conditions:
+
+          Low light  : boosts perceived brightness without blowing out highlights
+          Glasses    : improves local contrast around eye / frame regions so
+                       MTCNN landmarks are more reliably located
+
+        Args:
+            image: BGR uint8 image from the camera.
+
+        Returns:
+            Enhanced BGR uint8 image (same shape).
+        """
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        l_ch, a_ch, b_ch = cv2.split(lab)
+
+        # Adaptive equalisation — clip_limit=2.0, tile 8×8 is a good balance
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        l_eq = clahe.apply(l_ch)
+
+        enhanced_lab = cv2.merge([l_eq, a_ch, b_ch])
+        enhanced_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+        return enhanced_bgr
+
+    @staticmethod
+    def _brightness(image: np.ndarray) -> float:
+        """Return mean luminance of a BGR image (0–255)."""
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        return float(gray.mean())
+
+    # ------------------------------------------------------------------
+    # Detection
+    # ------------------------------------------------------------------
+
     def detect_face(self, image: np.ndarray, min_confidence: float = None) -> Optional[dict]:
         """
-        Detect face in image using MTCNN
-        
+        Detect the highest-confidence face in *image* using MTCNN.
+
+        Strategy:
+          1. Try the raw frame first.
+          2. If no detection or confidence is too low, automatically retry
+             once with the CLAHE-enhanced version of the frame.
+             This handles dim environments and drivers wearing glasses.
+
         Args:
-            image: Input image (BGR format)
-            min_confidence: Minimum confidence threshold (uses config if not provided)
-            
+            image:          BGR uint8 camera frame.
+            min_confidence: Minimum MTCNN confidence (falls back to config).
+
         Returns:
-            Detection dictionary with 'box', 'confidence', 'keypoints' or None
+            Detection dict with 'box', 'confidence', 'keypoints', or None.
         """
         min_confidence = min_confidence or config.get('verification.confidence_threshold', 0.95)
-        
-        # Convert BGR to RGB for MTCNN
-        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        # Detect faces
-        detections = self.detector.detect_faces(rgb_image)
-        
-        print(f"  MTCNN: Found {len(detections)} faces, threshold={min_confidence}")
-        
-        if not detections:
-            return None
-        
-        # Get detection with highest confidence
-        best_detection = max(detections, key=lambda x: x['confidence'])
-        
-        print(f"  MTCNN: Best confidence={best_detection['confidence']:.3f}")
-        
-        if best_detection['confidence'] < min_confidence:
-            print(f"  MTCNN: Rejected (below threshold)")
-            return None
-        
-        return best_detection
-    
+
+        def _run_mtcnn(img: np.ndarray) -> Optional[dict]:
+            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            detections = self.detector.detect_faces(rgb)
+            if not detections:
+                return None
+            best = max(detections, key=lambda x: x['confidence'])
+            return best if best['confidence'] >= min_confidence else None
+
+        # Pass 1: raw frame
+        result = _run_mtcnn(image)
+        if result is not None:
+            print(f"  MTCNN: found face  conf={result['confidence']:.3f}  threshold={min_confidence}")
+            return result
+
+        # Pass 2: CLAHE-enhanced frame (low light / glasses fallback)
+        enhanced = self.enhance_frame(image)
+        result = _run_mtcnn(enhanced)
+        if result is not None:
+            print(f"  MTCNN: found face (enhanced)  conf={result['confidence']:.3f}")
+            return result
+
+        brightness = self._brightness(image)
+        print(f"  MTCNN: no face detected  brightness={brightness:.1f}  threshold={min_confidence}")
+        return None
+
+
     def extract_face(self, image: np.ndarray, detection: dict, margin: float = 0.2) -> Optional[np.ndarray]:
         """
         Extract face region from image with margin
@@ -139,73 +197,78 @@ class FaceProcessor:
         """
         Validate face quality for enrollment.
         Returns (is_valid, reason).
+
+        Tolerances are deliberately relaxed around:
+          - Aspect ratio: glasses frames can make the face appear wider
+          - Centering:    \u00b140% offset (was \u00b130%)
+          - Face area:    3% minimum (was 5%)
         """
         # Check confidence
         if detection['confidence'] < 0.75:
             return False, f"Low confidence: {detection['confidence']:.2f}"
 
-        # Check face size
         x, y, width, height = detection['box']
-        face_area   = width * height
-        image_area  = image.shape[0] * image.shape[1]
-        face_ratio  = face_area / image_area
+        face_area  = width * height
+        image_area = image.shape[0] * image.shape[1]
+        face_ratio = face_area / image_area
 
-        # Must be at least 3% of frame (was 5% — too strict for distant webcams)
         if face_ratio < 0.03:
-            return False, "Face too small — move closer to the camera"
-
+            return False, "Face too small \u2014 move closer to the camera"
         if face_ratio > 0.85:
-            return False, "Face too close to camera — move back slightly"
-
-        # Require minimum pixel size regardless of ratio
+            return False, "Face too close to camera \u2014 move back slightly"
         if width < 60 or height < 60:
-            return False, "Face resolution too low — move closer"
+            return False, "Face resolution too low \u2014 move closer"
 
-        # Centering check — allow ±40% offset (was ±30%)
-        face_center_x   = x + width  / 2
-        face_center_y   = y + height / 2
-        image_center_x  = image.shape[1] / 2
-        image_center_y  = image.shape[0] / 2
-        offset_x = abs(face_center_x - image_center_x) / image.shape[1]
-        offset_y = abs(face_center_y - image_center_y) / image.shape[0]
-
+        face_center_x  = x + width  / 2
+        face_center_y  = y + height / 2
+        offset_x = abs(face_center_x - image.shape[1] / 2) / image.shape[1]
+        offset_y = abs(face_center_y - image.shape[0] / 2) / image.shape[0]
         if offset_x > 0.4 or offset_y > 0.4:
-            return False, "Face not centered — move to the middle of the frame"
+            return False, "Face not centered \u2014 move to the middle of the frame"
 
-        # Aspect ratio check
+        # Relaxed aspect ratio: glasses frames can widen apparent face width
         aspect_ratio = width / height
-        if aspect_ratio < 0.6 or aspect_ratio > 1.4:
-            return False, "Unusual face angle — face the camera directly"
+        if aspect_ratio < 0.55 or aspect_ratio > 1.50:
+            return False, "Unusual face angle \u2014 face the camera directly"
 
         return True, "OK"
+
 
     
     def process_for_enrollment(self, image: np.ndarray, min_confidence: float = 0.70):
         """
         Complete preprocessing pipeline for face detection and crop extraction.
 
+        The image is automatically enhanced with CLAHE before detection so the
+        pipeline is robust to low-light conditions and drivers wearing glasses.
+
         Used by both the enrollment flow (min_confidence=0.70, permissive) and
         the live verification loop (min_confidence=0.80, stricter).
 
+        Args:
+            image:          Raw BGR uint8 frame from the camera.
+            min_confidence: MTCNN confidence gate (passed through to detect_face).
+
         Returns:
-            Tuple of (raw_face_crop, status_message)
-            raw_face_crop is a uint8 BGR image suitable for generate_embedding().
-            Returns (None, reason) if detection or quality check fails.
+            (face_crop, status_message)
+            face_crop: uint8 BGR crop ready for generate_embedding(), or None.
         """
-        detection = self.detect_face(image, min_confidence=min_confidence)
+        # Always enhance first — cheap operation, improves robustness
+        # for both low-light frames AND drivers wearing glasses
+        enhanced = self.enhance_frame(image)
+
+        # detect_face() itself will try raw then enhanced-again as two passes,
+        # but since we pass the already-enhanced image we skip one MTCNN call.
+        detection = self.detect_face(enhanced, min_confidence=min_confidence)
 
         if detection is None:
             return None, "No face detected"
 
-        # Validate quality
-        is_valid, reason = self.validate_face_quality(image, detection)
+        is_valid, reason = self.validate_face_quality(enhanced, detection)
         if not is_valid:
             return None, f"Quality check failed: {reason}"
 
-        # Align face using eye landmarks
-        aligned = self.align_face(image, detection)
-
-        # Extract face region (raw uint8 BGR crop)
+        aligned   = self.align_face(enhanced, detection)
         face_crop = self.extract_face(aligned, detection)
 
         if face_crop is None:

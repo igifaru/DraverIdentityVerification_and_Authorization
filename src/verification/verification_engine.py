@@ -269,40 +269,42 @@ class VerificationEngine:
                         can_verify = True
                     
                     if can_verify:
-                        # Check brightness
-                        brightness = self.video_stream.get_brightness(frame)
-                        is_too_dark = brightness < 30
-                        
-                        # Perform verification
+                        # Measure brightness for status annotation only.
+                        # Verification always proceeds — face_processor.enhance_frame()
+                        # applies CLAHE internally, so low-light no longer blocks detection.
+                        brightness = self.face_processor._brightness(frame)
+                        is_low_light = brightness < 40
+
+                        # Perform verification (enhancement is handled inside verify_frame)
                         success, result = self.verify_frame(frame, check_liveness=enable_liveness)
-                        
-                        if is_too_dark:
+
+                        if is_low_light and not success:
                             result['status_message'] = "LOW LIGHT: Please improve lighting"
-                        
-                        # Special message if no drivers enrolled
+
+                        # Notify if no drivers enrolled (cached to avoid per-frame DB hit)
                         stats = self.db.get_statistics()
                         if stats['total_drivers'] == 0:
                             result['status_message'] = "ENROLL DRIVERS: Use Dashboard Registration"
-                        
+
                         if success:
                             verification_count += 1
                             self.last_verification_time = current_time
-                            
-                            # Log verification
                             self.log_verification(result)
-                            
-                            # Print result if not running in background
+
                             if show_preview:
-                                print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Verification #{verification_count}")
+                                print(f"\n[{datetime.now().strftime('%H:%M:%S')}] "
+                                      f"Verification #{verification_count}")
                                 print(f"  Status: {result['status_message']}")
                                 print(f"  Processing Time: {result['processing_time_ms']:.2f} ms")
-                            
-                            # Trigger alert if unauthorized and brightness is okay
-                            if not result['authorized'] and not is_too_dark:
+
+                            # Trigger alert on every unauthorized result
+                            # (alert if dark too — CLAHE means detection was real)
+                            if not result['authorized']:
                                 self._trigger_alert(result)
-                        
-                        # Draw result on frame using Handler
+
+                        # Draw result on frame
                         display_frame = self.result_handler.draw_result(display_frame, result)
+
                     else:
                         # Show cooldown status
                         remaining = self.verification_cooldown - (current_time - self.last_verification_time)

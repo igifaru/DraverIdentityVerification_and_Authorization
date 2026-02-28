@@ -269,19 +269,26 @@ class VerificationEngine:
                         can_verify = True
                     
                     if can_verify:
-                        # Measure brightness for status annotation only.
-                        # Verification always proceeds — face_processor.enhance_frame()
-                        # applies CLAHE internally, so low-light no longer blocks detection.
                         brightness = self.face_processor._brightness(frame)
-                        is_low_light = brightness < 40
 
-                        # Perform verification (enhancement is handled inside verify_frame)
+                        # Tier 1: completely dark / no signal
+                        # face_processor will also reject this, but set the message early
+                        # so the status API reflects it even before verify_frame is called.
+                        is_no_signal = brightness < self.face_processor._BRIGHTNESS_NO_SIGNAL
+                        is_low_light = (not is_no_signal and
+                                        brightness < self.face_processor._BRIGHTNESS_LOW_LIGHT)
+
                         success, result = self.verify_frame(frame, check_liveness=enable_liveness)
 
-                        if is_low_light and not success:
+                        # Override status message for camera/light conditions
+                        if is_no_signal and not success:
+                            result['status_message'] = (
+                                "NO SIGNAL: Camera may be blocked or no light source"
+                            )
+                        elif is_low_light and not success:
                             result['status_message'] = "LOW LIGHT: Please improve lighting"
 
-                        # Notify if no drivers enrolled (cached to avoid per-frame DB hit)
+                        # Notify if no drivers enrolled
                         stats = self.db.get_statistics()
                         if stats['total_drivers'] == 0:
                             result['status_message'] = "ENROLL DRIVERS: Use Dashboard Registration"
@@ -297,13 +304,14 @@ class VerificationEngine:
                                 print(f"  Status: {result['status_message']}")
                                 print(f"  Processing Time: {result['processing_time_ms']:.2f} ms")
 
-                            # Trigger alert on every unauthorized result
-                            # (alert if dark too — CLAHE means detection was real)
+                            # Alert for every unauthorized result
+                            # (no-signal frames never reach here — verify_frame returns False)
                             if not result['authorized']:
                                 self._trigger_alert(result)
 
                         # Draw result on frame
                         display_frame = self.result_handler.draw_result(display_frame, result)
+
 
                     else:
                         # Show cooldown status

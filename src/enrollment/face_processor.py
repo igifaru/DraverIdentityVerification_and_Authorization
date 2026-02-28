@@ -64,23 +64,41 @@ class FaceProcessor:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         return float(gray.mean())
 
+    # Brightness thresholds
+    # Below NO_SIGNAL  : completely dark / camera blocked  → reject, don't enhance
+    # Below LOW_LIGHT  : dim but workable                  → enhance, then detect
+    # Above LOW_LIGHT  : normal conditions                 → detect raw, enhance only as fallback
+    _BRIGHTNESS_NO_SIGNAL  = 8     # CLAHE cannot manufacture data that does not exist
+    _BRIGHTNESS_LOW_LIGHT  = 40    # usable dim light — CLAHE gives meaningful boost
+
     # ------------------------------------------------------------------
     # Detection
     # ------------------------------------------------------------------
 
-    def detect_face(self, image: np.ndarray, min_confidence: float = None) -> Optional[dict]:
+    def detect_face(
+        self,
+        image: np.ndarray,
+        min_confidence: float = None,
+        pre_enhanced: bool = False,
+    ) -> Optional[dict]:
         """
         Detect the highest-confidence face in *image* using MTCNN.
 
-        Strategy:
-          1. Try the raw frame first.
-          2. If no detection or confidence is too low, automatically retry
-             once with the CLAHE-enhanced version of the frame.
-             This handles dim environments and drivers wearing glasses.
+        3-tier strategy based on image brightness:
+
+          Tier 1  (brightness < 8)   : No-signal — reject immediately.
+                                        CLAHE cannot manufacture pixel data
+                                        from a completely black frame.
+          Tier 2  (8 ≤ brightness < 40): Low-light — enhance first, then detect.
+                                        CLAHE gives a meaningful boost here.
+          Tier 3  (brightness ≥ 40)  : Normal — try raw first, fall back to
+                                        CLAHE-enhanced only if raw fails.
 
         Args:
             image:          BGR uint8 camera frame.
             min_confidence: Minimum MTCNN confidence (falls back to config).
+            pre_enhanced:   If True, treat *image* as already enhanced
+                            (skip redundant CLAHE pass).
 
         Returns:
             Detection dict with 'box', 'confidence', 'keypoints', or None.
@@ -95,20 +113,38 @@ class FaceProcessor:
             best = max(detections, key=lambda x: x['confidence'])
             return best if best['confidence'] >= min_confidence else None
 
-        # Pass 1: raw frame
+        brightness = self._brightness(image)
+
+        # ——— Tier 1: completely dark / no signal ———
+        if brightness < self._BRIGHTNESS_NO_SIGNAL:
+            print(f"  MTCNN: skipped — no signal (brightness={brightness:.1f} < {self._BRIGHTNESS_NO_SIGNAL})")
+            return None
+
+        # ——— Tier 2: dim but workable — enhance first ———
+        if brightness < self._BRIGHTNESS_LOW_LIGHT:
+            img_to_use = image if pre_enhanced else self.enhance_frame(image)
+            result = _run_mtcnn(img_to_use)
+            if result is not None:
+                print(f"  MTCNN: found face (enhanced, dim)  conf={result['confidence']:.3f}  "
+                      f"brightness={brightness:.1f}")
+            else:
+                print(f"  MTCNN: no face  brightness={brightness:.1f} (dim, enhanced)")
+            return result
+
+        # ——— Tier 3: normal — try raw, fallback to enhanced only if needed ———
         result = _run_mtcnn(image)
         if result is not None:
-            print(f"  MTCNN: found face  conf={result['confidence']:.3f}  threshold={min_confidence}")
+            print(f"  MTCNN: found face (raw)  conf={result['confidence']:.3f}")
             return result
 
-        # Pass 2: CLAHE-enhanced frame (low light / glasses fallback)
-        enhanced = self.enhance_frame(image)
-        result = _run_mtcnn(enhanced)
-        if result is not None:
-            print(f"  MTCNN: found face (enhanced)  conf={result['confidence']:.3f}")
-            return result
+        # Fallback: try enhanced (glasses / partial occlusion)
+        if not pre_enhanced:
+            enhanced = self.enhance_frame(image)
+            result = _run_mtcnn(enhanced)
+            if result is not None:
+                print(f"  MTCNN: found face (enhanced fallback)  conf={result['confidence']:.3f}")
+                return result
 
-        brightness = self._brightness(image)
         print(f"  MTCNN: no face detected  brightness={brightness:.1f}  threshold={min_confidence}")
         return None
 
@@ -239,36 +275,61 @@ class FaceProcessor:
         """
         Complete preprocessing pipeline for face detection and crop extraction.
 
-        The image is automatically enhanced with CLAHE before detection so the
-        pipeline is robust to low-light conditions and drivers wearing glasses.
+        Brightness decision tree (applied before any MTCNN call):
 
-        Used by both the enrollment flow (min_confidence=0.70, permissive) and
-        the live verification loop (min_confidence=0.80, stricter).
+          brightness < 8   : Completely dark / camera blocked / lens covered.
+                             CLAHE cannot manufacture data that does not exist.
+                             Rejected immediately — no MTCNN inference wasted.
 
-        Args:
-            image:          Raw BGR uint8 frame from the camera.
-            min_confidence: MTCNN confidence gate (passed through to detect_face).
+          8 ≤ brightness < 40 : Dim but workable (dark room, dusk, shaded).
+                             CLAHE is applied first for maximum boost, then
+                             detection runs on the enhanced image.
+
+          brightness ≥ 40  : Normal light.
+                             Raw detect first (fastest path). CLAHE applied
+                             only as a fallback (e.g. for glasses occlusion).
+
+        Used by both the enrollment flow (min_confidence=0.70) and the live
+        verification loop (min_confidence=0.80).
 
         Returns:
             (face_crop, status_message)
             face_crop: uint8 BGR crop ready for generate_embedding(), or None.
         """
-        # Always enhance first — cheap operation, improves robustness
-        # for both low-light frames AND drivers wearing glasses
-        enhanced = self.enhance_frame(image)
+        brightness = self._brightness(image)
 
-        # detect_face() itself will try raw then enhanced-again as two passes,
-        # but since we pass the already-enhanced image we skip one MTCNN call.
-        detection = self.detect_face(enhanced, min_confidence=min_confidence)
+        # —— Tier 1: completely dark / no signal ——
+        if brightness < self._BRIGHTNESS_NO_SIGNAL:
+            reason = (
+                f"No signal — frame is too dark (brightness={brightness:.1f}). "
+                f"Camera may be blocked, lens covered, or no light source present."
+            )
+            print(f"  process_for_enrollment: {reason}")
+            return None, reason
+
+        # —— Tier 2: dim but workable — enhance first ——
+        if brightness < self._BRIGHTNESS_LOW_LIGHT:
+            working_image = self.enhance_frame(image)
+            pre_enhanced  = True
+        # —— Tier 3: normal light — use raw, CLAHE is fallback inside detect_face ——
+        else:
+            working_image = image
+            pre_enhanced  = False
+
+        detection = self.detect_face(
+            working_image,
+            min_confidence=min_confidence,
+            pre_enhanced=pre_enhanced,
+        )
 
         if detection is None:
             return None, "No face detected"
 
-        is_valid, reason = self.validate_face_quality(enhanced, detection)
+        is_valid, reason = self.validate_face_quality(working_image, detection)
         if not is_valid:
             return None, f"Quality check failed: {reason}"
 
-        aligned   = self.align_face(enhanced, detection)
+        aligned   = self.align_face(working_image, detection)
         face_crop = self.extract_face(aligned, detection)
 
         if face_crop is None:

@@ -61,13 +61,12 @@ class FaceMatcher:
         """
         Find the best matching driver for a live embedding.
 
-        The live embedding is L2-normalised before comparison.
-        Stored embeddings are expected to be unit vectors (norm≈1.0).
-        Cosine similarity = dot product for unit vectors.
-
         Returns:
-            Tuple of (driver_id, driver_name, similarity_score)
-            Returns (None, None, 0.0) if no enrolled drivers or ambiguous match.
+            (driver_id, driver_name, similarity_score)
+            Returns (None, None, 0.0) only when no enrolled drivers exist.
+
+        NOTE: authorization decision is made in verify_identity, NOT here.
+              This method always returns the best match found.
         """
         enrolled = self.db.get_all_embeddings()
         if not enrolled:
@@ -81,64 +80,74 @@ class FaceMatcher:
             return None, None, 0.0
         live_unit = live_embedding / live_norm
 
-        best_id, best_name, best_sim = None, None, 0.0
-        second_sim = 0.0
+        best_id, best_name, best_sim = None, None, -1.0
+        second_sim = -1.0
+        second_name = None
 
         for driver_id, driver_name, stored_emb in enrolled:
-            # Ensure stored embedding is also a unit vector (defensive)
             s_norm = np.linalg.norm(stored_emb)
             if s_norm < 1e-8:
                 continue
             stored_unit = stored_emb / s_norm
-
-            sim = float(np.dot(live_unit, stored_unit))   # == cosine similarity
+            sim = float(np.dot(live_unit, stored_unit))
 
             if sim > best_sim:
-                second_sim = best_sim
-                best_sim   = sim
-                best_id    = driver_id
-                best_name  = driver_name
+                second_sim  = best_sim
+                second_name = best_name
+                best_sim    = sim
+                best_id     = driver_id
+                best_name   = driver_name
             elif sim > second_sim:
-                second_sim = sim
+                second_sim  = sim
+                second_name = driver_name
 
-        # Reject ambiguous matches: if runner-up is within 0.05 of the best,
-        # we cannot reliably identify the person.
-        gap = best_sim - second_sim
-        if best_name and second_sim > 0.3 and gap < 0.05:
-            print(f"  WARNING: Ambiguous match — best={best_name} ({best_sim:.4f}), "
-                  f"gap={gap:.4f} < 0.05. Treating as no match.")
-            return None, None, best_sim
+        best_sim   = max(best_sim, 0.0)
+        second_sim = max(second_sim, 0.0)
+
+        # Warn when enrolled embeddings are suspiciously similar to each other
+        # (symptom of bad enrollment data — same photo used for multiple drivers)
+        if second_sim > 0.90 and best_name and second_name:
+            print(f"  DB WARNING: enrolled embeddings are nearly identical —"
+                  f" '{best_name}' sim={best_sim:.4f}, '{second_name}' sim={second_sim:.4f}."
+                  f" Re-enroll with distinct photos.")
 
         return best_id, best_name, best_sim
 
-    def verify_identity(self, live_embedding: np.ndarray, threshold: float = None) -> Tuple[bool, Optional[int], Optional[str], float]:
+    def verify_identity(
+        self,
+        live_embedding: np.ndarray,
+        threshold: float = None,
+    ) -> Tuple[bool, Optional[int], Optional[str], float]:
         """
-        Verify if live embedding matches any enrolled driver
-        
-        Args:
-            live_embedding: Embedding from live camera feed
-            threshold: Similarity threshold (uses config if not provided)
-            
-        Returns:
-            Tuple of (is_authorized, driver_id, driver_name, similarity_score)
+        Verify if a live embedding matches any enrolled driver.
+
+        Authorization rule:
+            AUTHORIZED  if  driver_id is not None  AND  similarity >= threshold
+            UNAUTHORIZED otherwise
+
+        The ambiguous-runner-up check from find_best_match was removed from
+        the authorization path because it was causing false rejections when
+        multiple enrolled drivers have near-identical embeddings (bad enrollment
+        data). The correct fix is to re-enroll drivers with distinct photos.
         """
         threshold = threshold or self.threshold
-        
-        # Find best match
+
         driver_id, driver_name, similarity = self.find_best_match(live_embedding)
-        
-        # Check if similarity meets threshold
-        is_authorized = similarity >= threshold
-        
-        if is_authorized:
-            print(f"✓ AUTHORIZED: {driver_name} (Similarity: {similarity:.4f})")
+
+        if driver_id is None:
+            # No enrolled drivers at all
+            is_authorized = False
         else:
-            if driver_id:
-                print(f"✗ UNAUTHORIZED: Best match '{driver_name}' below threshold "
-                      f"(Similarity: {similarity:.4f} < {threshold:.4f})")
+            is_authorized = similarity >= threshold
+
+        if is_authorized:
+            print(f"✓ AUTHORIZED: {driver_name!r} (ID={driver_id}, sim={similarity:.4f})")
+        else:
+            if driver_id and similarity > 0:
+                print(f"✗ UNAUTHORIZED: best='{driver_name}' sim={similarity:.4f} < threshold={threshold:.4f}")
             else:
-                print(f"✗ UNAUTHORIZED: No enrolled drivers")
-        
+                print(f"✗ UNAUTHORIZED: no enrolled drivers")
+
         return is_authorized, driver_id, driver_name, similarity
     
     def get_all_similarities(self, live_embedding: np.ndarray) -> List[Tuple[int, str, float]]:

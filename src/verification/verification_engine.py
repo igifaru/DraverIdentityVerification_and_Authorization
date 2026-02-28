@@ -106,82 +106,86 @@ class VerificationEngine:
             return None
     
     def verify_frame(self, frame: np.ndarray, check_liveness: bool = True) -> Tuple[bool, dict]:
-        """Verify a single frame"""
+        """
+        Run the full verification pipeline on a single video frame.
+
+        Pipeline:
+          1. Detect + align + crop face  (process_for_enrollment — single MTCNN call)
+          2. Liveness check              (optional)
+          3. Generate FaceNet embedding
+          4. Match against enrolled drivers
+
+        Returns:
+            (success, result_dict)
+            success=False means no usable face was found (not that access was denied).
+        """
         start_time = time.time()
-        
+
         result = {
-            'authorized': False,
-            'driver_id': None,
-            'driver_name': None,
-            'similarity_score': 0.0,
-            'liveness_passed': False,
+            'authorized':         False,
+            'driver_id':          None,
+            'driver_name':        None,
+            'similarity_score':   0.0,
+            'liveness_passed':    False,
             'processing_time_ms': 0.0,
-            'status_message': '',
-            'image_path': None
+            'status_message':     '',
+            'image_path':         None,
         }
-        
-        # Detect face
-        detection = self.face_processor.detect_face(frame)
-        
-        if detection is None:
-            result['status_message'] = "No face detected"
+
+        # ---- Step 1: detect + align + crop (single MTCNN call, threshold=0.80) ----
+        face_crop, detect_status = self.face_processor.process_for_enrollment(
+            frame, min_confidence=0.80
+        )
+
+        if face_crop is None:
+            result['status_message'] = detect_status   # "No face detected", quality msg, etc.
             result['processing_time_ms'] = (time.time() - start_time) * 1000
             return False, result
-        
-        # Check liveness if enabled
-        # Check liveness if enabled
+
+        # ---- Step 2: liveness check ----
         if check_liveness and self.liveness_detector:
-            is_live, liveness_status, liveness_confidence = self.liveness_detector.check_liveness(frame)
+            is_live, liveness_status, _ = self.liveness_detector.check_liveness(frame)
             result['liveness_passed'] = is_live
-            
             if not is_live:
                 result['status_message'] = f"Liveness check: {liveness_status}"
                 result['processing_time_ms'] = (time.time() - start_time) * 1000
                 return False, result
         else:
             result['liveness_passed'] = True
-        
-        # Process face
-        preprocessed_face, status = self.face_processor.process_for_enrollment(frame)
-        
-        if preprocessed_face is None:
-            result['status_message'] = f"Face processing failed: {status}"
-            result['processing_time_ms'] = (time.time() - start_time) * 1000
-            return False, result
-        
-        # Generate embedding
-        embedding = self.face_processor.generate_embedding(preprocessed_face)
-        
+
+        # ---- Step 3: embedding ----
+        embedding = self.face_processor.generate_embedding(face_crop)
         if embedding is None:
             result['status_message'] = "Failed to generate embedding"
             result['processing_time_ms'] = (time.time() - start_time) * 1000
             return False, result
-        
-        # Match against enrolled drivers
-        is_authorized, driver_id, driver_name, similarity = self.face_matcher.verify_identity(embedding)
-        
-        result['authorized'] = is_authorized
-        result['driver_id'] = driver_id
-        result['driver_name'] = driver_name
+
+        # ---- Step 4: identity match ----
+        is_authorized, driver_id, driver_name, similarity = \
+            self.face_matcher.verify_identity(embedding)
+
+        result['authorized']       = is_authorized
+        result['driver_id']        = driver_id
+        result['driver_name']      = driver_name
         result['similarity_score'] = similarity
         result['processing_time_ms'] = (time.time() - start_time) * 1000
-        
+
         if is_authorized:
             result['status_message'] = f"AUTHORIZED: {driver_name} ({similarity:.3f})"
+        elif driver_id:
+            result['status_message'] = (
+                f"UNAUTHORIZED: Best match '{driver_name}' ({similarity:.3f})"
+            )
         else:
-            if driver_name:
-                result['status_message'] = f"UNAUTHORIZED: Best match '{driver_name}' ({similarity:.3f})"
-            else:
-                result['status_message'] = "UNAUTHORIZED: No enrolled drivers"
-        
-        # Save image
-        result['image_path'] = self.save_verification_image(frame, is_authorized, driver_name)
-        
-        # Trigger email alert for unauthorized if enabled
-        if not is_authorized and self.email_service.is_configured:
-            result['email_sent'] = False # Will be updated in _trigger_alert
-            
+            result['status_message'] = "UNAUTHORIZED: No confident match"
+
+        # Save image for unauthorized attempts only
+        result['image_path'] = self.save_verification_image(
+            frame, is_authorized, driver_name
+        )
+
         return True, result
+
     
     def log_verification(self, result: dict):
         """Log verification attempt to database.

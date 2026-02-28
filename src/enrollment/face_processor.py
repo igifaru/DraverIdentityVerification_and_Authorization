@@ -180,18 +180,19 @@ class FaceProcessor:
         return True, "OK"
 
     
-    def process_for_enrollment(self, image: np.ndarray):
+    def process_for_enrollment(self, image: np.ndarray, min_confidence: float = 0.70):
         """
-        Complete preprocessing pipeline for enrollment.
+        Complete preprocessing pipeline for face detection and crop extraction.
+
+        Used by both the enrollment flow (min_confidence=0.70, permissive) and
+        the live verification loop (min_confidence=0.80, stricter).
 
         Returns:
             Tuple of (raw_face_crop, status_message)
             raw_face_crop is a uint8 BGR image suitable for generate_embedding().
             Returns (None, reason) if detection or quality check fails.
         """
-        # Detect face — use 0.70 threshold for enrollment (permissive)
-        detection = self.detect_face(image, min_confidence=0.70)
-
+        detection = self.detect_face(image, min_confidence=min_confidence)
 
         if detection is None:
             return None, "No face detected"

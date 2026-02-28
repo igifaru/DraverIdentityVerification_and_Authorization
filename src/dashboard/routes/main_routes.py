@@ -91,10 +91,33 @@ def index():
 
 @main_bp.route('/driver')
 def driver_screen():
-    """Render the public driver feedback screen."""
-    return render_template('driver.html',
-                           vehicle_plate=config.vehicle_plate,
-                           system_id=config.system_id)
+    """
+    Render the public driver terminal (no login required).
+
+    Automatically starts the camera and verification engine so the terminal
+    is always-on from the moment the page loads — no manual interaction needed.
+    """
+    engine = current_app.config['VERIFICATION_ENGINE']
+
+    # Start camera if not already running
+    if not engine.video_stream.is_running:
+        engine.start_camera()
+
+    # Start the verification loop if not already running
+    if not engine.is_running:
+        import threading
+        t = threading.Thread(
+            target=engine.run_continuous_verification,
+            kwargs={'show_preview': False},
+            daemon=True,
+        )
+        t.start()
+
+    return render_template(
+        'driver.html',
+        vehicle_plate=config.vehicle_plate,
+        system_id=config.system_id,
+    )
 
 
 # ---------------------------------------------------------------------------

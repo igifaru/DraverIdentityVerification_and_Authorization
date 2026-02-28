@@ -1,167 +1,486 @@
-﻿:root {
-    --bg-color: #050505;
-    --text-color: #ffffff;
-    --primary-color: #3498db;
-    --success-color: #2ecc71;
-    --error-color: #e74c3c;
-    --warning-color: #f1c40f;
-    --panel-bg: rgba(20, 20, 25, 0.8);
+﻿/* ================================================================
+   driver.css — Driver Verification Terminal
+   Fullscreen camera · Face-guide oval · Unauthorized-only alert
+   ================================================================ */
+
+:root {
+    --blue: #4cc9f0;
+    --blue-dim: rgba(76, 201, 240, 0.55);
+    --red: #e63946;
+    --red-glow: rgba(230, 57, 70, 0.6);
+    --white: #ffffff;
+    --black: #000000;
+    --glass: rgba(5, 8, 18, 0.72);
 }
 
-* {
+/* ---- Reset ---- */
+*,
+*::before,
+*::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
 body {
-    font-family: 'Roboto', sans-serif;
-    background-color: var(--bg-color);
-    color: var(--text-color);
+    width: 100vw;
     height: 100vh;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    background: var(--black);
+    font-family: 'Inter', sans-serif;
+    color: var(--white);
+    -webkit-font-smoothing: antialiased;
 }
 
-.header {
-    width: 100%;
-    padding: 20px;
-    text-align: center;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
-    position: absolute;
-    top: 0;
-    z-index: 10;
-}
-
-.system-name {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.5rem;
-    letter-spacing: 4px;
-    color: var(--primary-color);
-    text-transform: uppercase;
-}
-
-.container {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px;
-}
-
-.video-wrapper {
-    position: relative;
-    width: 80vh;
-    max-width: 90%;
-    aspect-ratio: 4/3;
-    border: 4px solid #333;
-    border-radius: 20px;
-    overflow: hidden;
-    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5), 0 0 20px rgba(52, 152, 219, 0.2);
-    margin-bottom: 40px;
-}
-
-.video-feed {
+/* ================================================================
+   LAYER 1 — Camera feed (fills entire viewport)
+   ================================================================ */
+#videoFeed {
+    position: fixed;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
     transform: scaleX(-1);
-    /* Mirror effect for driver */
+    /* mirror — natural for driver */
+    z-index: 1;
 }
 
-.status-container {
-    width: 100%;
-    max-width: 800px;
-    text-align: center;
-    padding: 30px;
-    border-radius: 15px;
-    background-color: var(--panel-bg);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
+/* ================================================================
+   LAYER 2 — Scanning / guide overlay
+   ================================================================ */
+.scan-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
-.status-message {
-    font-size: 4rem;
-    font-weight: 900;
-    text-transform: uppercase;
-    margin-bottom: 10px;
-    letter-spacing: 2px;
-    transition: all 0.3s ease;
-}
-
-.instruction-message {
-    font-size: 1.8rem;
-    font-weight: 300;
-    color: rgba(255, 255, 255, 0.7);
-}
-
-/* Status Colors */
-.status-neutral {
-    color: var(--text-color);
-}
-
-.status-authorized {
-    color: var(--success-color);
-    text-shadow: 0 0 20px rgba(46, 204, 113, 0.4);
-}
-
-.status-unauthorized {
-    color: var(--error-color);
-    text-shadow: 0 0 20px rgba(231, 76, 60, 0.4);
-}
-
-.status-scanning {
-    color: var(--warning-color);
-    text-shadow: 0 0 20px rgba(241, 196, 15, 0.4);
-}
-
-.scanning-line {
+/* Full-viewport SVG so the oval scales with screen size */
+.guide-svg {
     position: absolute;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100%;
-    height: 2px;
-    background: var(--primary-color);
-    box-shadow: 0 0 15px var(--primary-color);
-    animation: scan 3s linear infinite;
-    z-index: 5;
-    display: none;
+    height: 100%;
 }
 
-@keyframes scan {
+/* ---- Animated scan sweep line (clips inside the oval area via JS/CSS) ---- */
+.sweep-line {
+    position: absolute;
+    left: 50%;
+    width: 2px;
+    /* vertical line — rotated below */
+    /* We use a horizontal line sweeping top-to-bottom inside the oval region */
+    height: 44%;
+    /* matches oval height roughly */
+    top: 50%;
+    transform: translate(-50%, -56%) scaleX(55%);
+    background: linear-gradient(to bottom,
+            transparent 0%,
+            var(--blue-dim) 40%,
+            var(--blue) 50%,
+            var(--blue-dim) 60%,
+            transparent 100%);
+    width: 40%;
+    /* horizontal sweep bar */
+    height: 2px;
+    animation: sweepDown 2.8s ease-in-out infinite;
+    opacity: 0.7;
+}
+
+@keyframes sweepDown {
     0% {
-        top: 0;
+        transform: translate(-50%, -56%) translateY(0px);
+        opacity: 0.3;
     }
 
-    50% {
-        top: 100%;
+    10% {
+        opacity: 0.9;
+    }
+
+    90% {
+        opacity: 0.9;
     }
 
     100% {
-        top: 0;
+        transform: translate(-50%, -56%) translateY(154px);
+        opacity: 0.3;
     }
 }
 
-.center-guide {
+/* ---- Corner brackets ---- */
+.bracket {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 300px;
-    height: 300px;
-    border: 2px dashed rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    z-index: 5;
+    width: 28px;
+    height: 28px;
+    border-color: var(--blue);
+    border-style: solid;
+    border-width: 0;
+    opacity: 0.85;
 }
 
-.footer {
+/* Position each bracket at the edges of the oval area */
+/* Oval occupies roughly center 44% wide × 56% tall of screen */
+.bracket.tl {
+    top: calc(50% - 28% - 14px);
+    left: calc(50% - 22% - 14px);
+    border-top-width: 3px;
+    border-left-width: 3px;
+    border-radius: 4px 0 0 0;
+}
+
+.bracket.tr {
+    top: calc(50% - 28% - 14px);
+    right: calc(50% - 22% - 14px);
+    border-top-width: 3px;
+    border-right-width: 3px;
+    border-radius: 0 4px 0 0;
+}
+
+.bracket.bl {
+    bottom: calc(50% - 28% - 14px);
+    left: calc(50% - 22% - 14px);
+    border-bottom-width: 3px;
+    border-left-width: 3px;
+    border-radius: 0 0 0 4px;
+}
+
+.bracket.br {
+    bottom: calc(50% - 28% - 14px);
+    right: calc(50% - 22% - 14px);
+    border-bottom-width: 3px;
+    border-right-width: 3px;
+    border-radius: 0 0 4px 0;
+}
+
+/* ---- Guide label below the oval ---- */
+.guide-label {
     position: absolute;
-    bottom: 20px;
+    bottom: calc(50% - 30%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.55rem, 1.2vw, 0.72rem);
+    letter-spacing: 4px;
+    color: var(--blue-dim);
+    text-transform: uppercase;
+    animation: labelBlink 3s ease-in-out infinite;
+}
+
+@keyframes labelBlink {
+
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+.guide-dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--blue);
+    opacity: 0.7;
+}
+
+/* ================================================================
+   LAYER 3 — HUD Header
+   ================================================================ */
+.hud-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+.hud-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.hud-logo {
+    font-size: 1.2rem;
+    color: var(--blue);
+    animation: spin 8s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.hud-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.55rem, 1.5vw, 0.78rem);
+    letter-spacing: 4px;
+    color: rgba(255, 255, 255, 0.65);
+    text-transform: uppercase;
+}
+
+.hud-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* LED dot */
+.status-led {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--blue);
+    box-shadow: 0 0 8px var(--blue);
+    animation: ledPulse 1.5s ease-in-out infinite;
+    transition: background 0.4s, box-shadow 0.4s;
+}
+
+.status-led.denied {
+    background: var(--red);
+    box-shadow: 0 0 12px var(--red-glow);
+}
+
+@keyframes ledPulse {
+
+    0%,
+    100% {
+        opacity: 0.5;
+        transform: scale(0.85);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.15);
+    }
+}
+
+.status-word {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.5rem, 1.2vw, 0.68rem);
+    letter-spacing: 3px;
+    color: var(--blue-dim);
+    text-transform: uppercase;
+    transition: color 0.4s;
+    min-width: 80px;
+    text-align: right;
+}
+
+.status-word.denied {
+    color: var(--red);
+}
+
+/* ================================================================
+   LAYER 4 — Footer
+   ================================================================ */
+.hud-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 12px 24px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.45rem, 1vw, 0.62rem);
+    letter-spacing: 3px;
+    color: rgba(255, 255, 255, 0.22);
+    pointer-events: none;
+}
+
+.hud-footer .sep {
+    margin: 0 14px;
+    opacity: 0.4;
+}
+
+/* ================================================================
+   LAYER 5 — ACCESS DENIED overlay (shown only on unauthorized)
+   ================================================================ */
+.alert-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.88);
+
+    /* Hidden state */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.alert-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ---- Screen-edge red glow bars ---- */
+.glow-bar {
+    position: absolute;
+    background: var(--red);
+    opacity: 0;
+    transition: opacity 0.3s;
+    animation: barFlash 0.9s ease-in-out infinite;
+}
+
+.alert-overlay.visible .glow-bar {
+    opacity: 1;
+}
+
+.glow-bar.top {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+}
+
+.glow-bar.bottom {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+}
+
+.glow-bar.left {
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+}
+
+.glow-bar.right {
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+}
+
+@keyframes barFlash {
+
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+
+    50% {
+        opacity: 1;
+        box-shadow: 0 0 20px var(--red-glow);
+    }
+}
+
+/* ---- Alert card ---- */
+.alert-card {
+    position: relative;
+    text-align: center;
+    padding: 52px 80px;
+    border: 1.5px solid rgba(230, 57, 70, 0.5);
+    border-radius: 18px;
+    background: rgba(8, 0, 2, 0.82);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    max-width: 560px;
+    width: 90%;
+    animation: cardPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes cardPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 40px rgba(230, 57, 70, 0.25), 0 0 80px rgba(230, 57, 70, 0.08);
+    }
+
+    50% {
+        box-shadow: 0 0 70px rgba(230, 57, 70, 0.55), 0 0 140px rgba(230, 57, 70, 0.2);
+    }
+}
+
+/* ---- SVG X icon ---- */
+.alert-icon-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.alert-svg {
+    width: 72px;
+    height: 72px;
+    filter: drop-shadow(0 0 16px rgba(230, 57, 70, 0.8));
+    animation: iconPop 1.6s ease-in-out infinite;
+}
+
+@keyframes iconPop {
+
+    0%,
+    100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 14px rgba(230, 57, 70, 0.7));
+    }
+
+    50% {
+        transform: scale(1.07);
+        filter: drop-shadow(0 0 28px rgba(230, 57, 70, 1));
+    }
+}
+
+.alert-headline {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 900;
+    letter-spacing: 8px;
+    color: var(--red);
+    text-shadow: 0 0 24px rgba(230, 57, 70, 0.7);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+}
+
+.alert-sub {
+    font-size: clamp(0.9rem, 2vw, 1.05rem);
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.75);
+    letter-spacing: 1.5px;
+    margin-bottom: 28px;
+}
+
+.alert-divider {
+    width: 60px;
+    height: 1px;
+    background: rgba(230, 57, 70, 0.4);
+    margin: 0 auto 20px;
+}
+
+.alert-action {
+    font-size: 0.72rem;
+    letter-spacing: 2px;
     color: rgba(255, 255, 255, 0.3);
-    font-size: 0.8rem;
+    text-transform: uppercase;
+    font-family: 'Orbitron', sans-serif;
 }

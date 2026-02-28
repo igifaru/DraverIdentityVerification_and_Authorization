@@ -76,52 +76,63 @@ class VerificationResultHandler:
     @staticmethod
     def get_driver_status(result: Dict, is_running: bool) -> Dict:
         """
-        Get simplified status for the driver feedback screen
-        
-        Args:
-            result: Latest verification result
-            is_running: Whether the engine is running
-            
-        Returns:
-            Dictionary with state, status_display, and instruction
+        Return simplified verification status for the driver terminal.
+
+        States returned:
+          scanning     – engine running, no face or still processing
+          authorized   – driver recognised (silent on terminal)
+          unauthorized – access denied  (terminal shows alert overlay)
+          warning      – low-light or liveness failure
+          ready        – engine not yet started
         """
         if not is_running:
             return {
-                'state': 'ready',
+                'state':       'ready',
                 'status_display': 'SYSTEM READY',
-                'instruction': 'Initializing camera...'
+                'instruction': 'Initializing camera...',
+                'event_id':    None,
+                'meta':        '',
             }
-            
-        state = 'scanning'
+
+        state         = 'scanning'
         status_display = 'SCANNING'
-        instruction = 'Please look at the camera'
-        
+        instruction   = 'Please look at the camera'
+        event_id      = None
+        meta          = ''
+
         if result:
-            msg = result.get('status_message', '').upper()
-            
-            if "LOW LIGHT" in msg:
-                state = 'warning'
+            event_id = result.get('log_id')          # unique per verification
+            msg      = result.get('status_message', '').upper()
+
+            if 'LOW LIGHT' in msg:
+                state         = 'warning'
                 status_display = 'LOW LIGHT'
-                instruction = 'Please improve lighting'
-            elif "ENROLL" in msg:
-                state = 'warning'
+                instruction   = 'Please improve lighting'
+            elif 'ENROLL' in msg:
+                state         = 'warning'
                 status_display = 'SETUP REQUIRED'
-                instruction = 'Contact authority'
+                instruction   = 'Contact authority'
             elif result.get('authorized'):
-                state = 'authorized'
+                state         = 'authorized'
                 status_display = 'ACCESS GRANTED'
-                instruction = 'Driver verified successfully'
+                instruction   = 'Driver verified successfully'
             elif not result.get('liveness_passed') and result.get('similarity_score', 0) > 0:
-                state = 'warning'
-                status_display = 'LIVENESS FAILED'
-                instruction = 'Please blink naturally'
-            elif result.get('similarity_score', 0) > 0:
-                state = 'unauthorized'
+                state         = 'unauthorized'
                 status_display = 'ACCESS DENIED'
-                instruction = 'Unauthorized driver detected'
-                
+                instruction   = 'Liveness check failed'
+                score         = result.get('similarity_score', 0)
+                meta          = f'Similarity: {score:.1%}'
+            elif result.get('similarity_score', 0) > 0:
+                state         = 'unauthorized'
+                status_display = 'ACCESS DENIED'
+                instruction   = 'Unauthorized driver detected'
+                score         = result.get('similarity_score', 0)
+                meta          = f'Similarity: {score:.1%}'
+
         return {
-            'state': state,
+            'state':          state,
             'status_display': status_display,
-            'instruction': instruction
+            'instruction':    instruction,
+            'event_id':       event_id,
+            'meta':           meta,
         }

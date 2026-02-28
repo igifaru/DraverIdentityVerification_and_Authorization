@@ -4,37 +4,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Driver Verification Interface</title>
+    <title>Driver Verification Terminal</title>
     <link
-        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/driver.css') }}">
-
 </head>
 
 <body>
-    <div class="header">
-        <div class="system-name">Biometric Identity Verification</div>
-        <div style="font-size: 0.9rem; color: rgba(255,255,255,0.5); margin-top: 5px;">
-            VEHICLE: {{ vehicle_plate }}
+
+    <!-- Layer 1: Full-viewport live camera feed -->
+    <img id="videoFeed" src="{{ url_for('main.video_feed') }}" alt="Live Camera Feed">
+
+    <!-- Layer 2: Scanning overlay (face guide + corner brackets + scan line) -->
+    <div class="scan-layer" id="scanLayer" aria-hidden="true">
+
+        <!-- Horizontal scanning line that sweeps through the oval -->
+        <div class="sweep-line" id="sweepLine"></div>
+
+        <!-- SVG face guide: oval + corner brackets -->
+        <svg class="guide-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"
+            xmlns="http://www.w3.org/2000/svg">
+            <!-- Darken everything outside the oval -->
+            <defs>
+                <mask id="ovalMask">
+                    <rect width="100" height="100" fill="white" />
+                    <ellipse cx="50" cy="48" rx="22" ry="28" fill="black" />
+                </mask>
+            </defs>
+            <rect width="100" height="100" fill="rgba(0,0,0,0.45)" mask="url(#ovalMask)" />
+            <!-- Oval guide ring -->
+            <ellipse id="guideOval" cx="50" cy="48" rx="22" ry="28" fill="none" stroke="#4cc9f0" stroke-width="0.4"
+                opacity="0.9" />
+        </svg>
+
+        <!-- Corner brackets (absolute CSS) -->
+        <div class="bracket tl"></div>
+        <div class="bracket tr"></div>
+        <div class="bracket bl"></div>
+        <div class="bracket br"></div>
+
+        <!-- Instruction text below the oval -->
+        <div class="guide-label" id="guideLabel">
+            <span class="guide-dot"></span>
+            ALIGN FACE IN FRAME
+            <span class="guide-dot"></span>
         </div>
     </div>
 
-    <div class="container">
-        <div class="video-wrapper">
-            <div class="scanning-line" id="scanningLine"></div>
-            <div class="center-guide"></div>
-            <img src="{{ url_for('main.video_feed') }}" class="video-feed" alt="Video Feed">
+    <!-- Layer 3: Header bar -->
+    <header class="hud-header">
+        <div class="hud-brand">
+            <span class="hud-logo">◈</span>
+            <span class="hud-name">BIOMETRIC IDENTITY VERIFICATION</span>
         </div>
-
-        <div class="status-container" id="statusPanel">
-            <div class="status-message status-neutral" id="statusText">System Ready</div>
-            <div class="instruction-message" id="instructionText">Please position your face in the guide</div>
+        <div class="hud-status">
+            <span class="status-led" id="statusLed"></span>
+            <span class="status-word" id="statusWord">SCANNING</span>
         </div>
-    </div>
+    </header>
 
-    <div class="footer">
-        Security ID: {{ system_id }} | Real-time monitoring active
+    <!-- Layer 4: Footer watermark -->
+    <footer class="hud-footer">
+        <span>{{ system_id }}</span>
+        <span class="sep">·</span>
+        <span>{{ vehicle_plate }}</span>
+        <span class="sep">·</span>
+        <span id="clockDisplay"></span>
+    </footer>
+
+    <!-- Layer 5: UNAUTHORIZED alert overlay (hidden, shown only on denial) -->
+    <div class="alert-overlay" id="alertOverlay" role="alert" aria-live="assertive">
+        <!-- Red screen-edge glow bars -->
+        <div class="glow-bar top"></div>
+        <div class="glow-bar bottom"></div>
+        <div class="glow-bar left"></div>
+        <div class="glow-bar right"></div>
+
+        <div class="alert-card">
+            <div class="alert-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" class="alert-svg">
+                    <circle cx="12" cy="12" r="11" stroke="#e63946" stroke-width="1.5" />
+                    <line x1="8" y1="8" x2="16" y2="16" stroke="#e63946" stroke-width="2" stroke-linecap="round" />
+                    <line x1="16" y1="8" x2="8" y2="16" stroke="#e63946" stroke-width="2" stroke-linecap="round" />
+                </svg>
+            </div>
+            <div class="alert-headline">ACCESS DENIED</div>
+            <div class="alert-sub" id="alertSub">Unauthorized driver detected</div>
+            <div class="alert-divider"></div>
+            <div class="alert-action">Alert sent to administrator</div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/driver.js') }}"></script>

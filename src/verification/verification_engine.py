@@ -415,7 +415,11 @@ class VerificationEngine:
         )
 
     def enroll_new_driver(self, name: str, license_number: str, images: list,
-                          category: str = 'A') -> Tuple[bool, str]:
+                          category: str = 'A',
+                          dob: Optional[str] = None,
+                          gender: Optional[str] = None,
+                          expiry_date: Optional[str] = None,
+                          issue_place: Optional[str] = None) -> Tuple[bool, str]:
         """Enroll a new driver from a list of provided images (multi-sample).
 
         Pipeline per image:
@@ -496,7 +500,11 @@ class VerificationEngine:
             self.db.enroll_driver(name, final_embedding,
                                   license_number=license_number,
                                   category=category,
-                                  photo_path=photo_path)
+                                  photo_path=photo_path,
+                                  dob=dob,
+                                  gender=gender,
+                                  expiry_date=expiry_date,
+                                  issue_place=issue_place)
             return True, (f"Successfully enrolled {name} (Category {category}) "
                           f"with {len(embeddings)}/{len(images)} biometric samples")
         except Exception as exc:

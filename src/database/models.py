@@ -22,6 +22,10 @@ class Driver:
     email: Optional[str] = None
     status: str = "active"
     photo_path: Optional[str] = None
+    dob: Optional[datetime] = None
+    gender: Optional[str] = None
+    expiry_date: Optional[datetime] = None
+    issue_place: Optional[str] = None
 
     # Category labels for display
     CATEGORY_LABELS = {
@@ -57,6 +61,10 @@ class Driver:
             'email': self.email,
             'status': self.status,
             'photo_url': f'/api/driver-photo/{self.driver_id}' if self.photo_path and os.path.isfile(self.photo_path) else None,
+            'dob': self.dob.isoformat() if self.dob and hasattr(self.dob, 'isoformat') else self.dob,
+            'gender': self.gender,
+            'expiry_date': self.expiry_date.isoformat() if self.expiry_date and hasattr(self.expiry_date, 'isoformat') else self.expiry_date,
+            'issue_place': self.issue_place,
         }
 
 

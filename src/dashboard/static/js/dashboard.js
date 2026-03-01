@@ -363,12 +363,21 @@ const TOTAL_SAMPLES = 5;
 async function startEnrollmentWorkflow() {
     const name = document.getElementById('enrollName').value.trim();
     const id = document.getElementById('enrollID').value.trim();
+    const dob = document.getElementById('enrollDOB').value.trim();
+    const gender = document.getElementById('enrollGender').value.trim();
+    const expiry_date = document.getElementById('enrollExpiry').value.trim();
+    const issue_place = document.getElementById('enrollIssuePlace').value.trim();
     const msg = document.getElementById('enrollMsg');
     const btn = document.getElementById('btnStart2');
 
     // Validate
     if (!name || !id) {
-        setEnrollMsg('Name and licence number are required.', 'err');
+        setEnrollMsg('Name and license number are required.', 'err');
+        return;
+    }
+
+    if (!/^\d+$/.test(id)) {
+        setEnrollMsg('License number must contain only numbers.', 'err');
         return;
     }
 
@@ -429,19 +438,21 @@ async function startEnrollmentWorkflow() {
 
     statusText.textContent = 'Processing…';
     setEnrollMsg('All samples collected. Processing biometric data…', '');
-    await commitEnrollment(name, id);
+    await commitEnrollment(name, id, dob, gender, expiry_date, issue_place);
     btn.disabled = false;
 }
 
 
-async function commitEnrollment(name, id) {
+async function commitEnrollment(name, id, dob, gender, expiry_date, issue_place) {
     const categories = [...document.querySelectorAll('#categoryGroup input[name="driverCategory"]:checked')]
         .map(cb => cb.value);
     try {
         const res = await fetch('/api/enroll/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, driver_id: id, categories, images: enrollmentSamples }),
+            body: JSON.stringify({
+                name, driver_id: id, dob, gender, expiry_date, issue_place, categories, images: enrollmentSamples
+            }),
         });
         const data = await res.json();
 
@@ -465,6 +476,10 @@ function setEnrollMsg(text, type) {
 function resetEnrollForm() {
     document.getElementById('enrollName').value = '';
     document.getElementById('enrollID').value = '';
+    document.getElementById('enrollDOB').value = '';
+    document.getElementById('enrollGender').value = '';
+    document.getElementById('enrollExpiry').value = '';
+    document.getElementById('enrollIssuePlace').value = '';
     document.querySelectorAll('#categoryGroup input[name="driverCategory"]')
         .forEach(cb => { cb.checked = cb.value === 'B'; });
     document.getElementById('enrollPreview').style.display = 'none';

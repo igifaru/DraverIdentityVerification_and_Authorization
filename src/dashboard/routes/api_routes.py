@@ -337,8 +337,16 @@ def enroll_save_driver():
     data = request.json or {}
     name = data.get('name', '').strip()
     license_number = data.get('driver_id', '').strip()
+    dob = data.get('dob', '').strip()
+    gender = data.get('gender', '').strip()
+    expiry_date = data.get('expiry_date', '').strip()
+    issue_place = data.get('issue_place', '').strip()
+
     if not name or not license_number:
         return jsonify({'error': 'Missing name/ID'}), 400
+
+    if not license_number.isdigit():
+        return jsonify({'error': 'Driving license number must contain only numbers'}), 400
 
     engine = _get_engine()
     if engine.db.get_driver_by_name(name): return jsonify({'error': 'Name exists'}), 409
@@ -352,7 +360,16 @@ def enroll_save_driver():
     images = _decode_images(images_raw)
     if not images: return jsonify({'error': 'No valid images'}), 400
 
-    success, message = engine.enroll_new_driver(name, license_number, images, category=','.join(categories))
+    success, message = engine.enroll_new_driver(
+        name, 
+        license_number, 
+        images, 
+        category=','.join(categories),
+        dob=dob if dob else None,
+        gender=gender if gender else None,
+        expiry_date=expiry_date if expiry_date else None,
+        issue_place=issue_place if issue_place else None
+    )
     if success:
         engine.db.log_audit("ENROLL_DRIVER", _current_user(), f"Enrolled: {name}", request.remote_addr)
         return jsonify({'success': True, 'message': message})

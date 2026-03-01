@@ -72,6 +72,10 @@ class DriverRepository:
             email=row.get('email'),
             status=row['status'],
             photo_path=row.get('photo_path'),
+            dob=row.get('dob'),
+            gender=row.get('gender'),
+            expiry_date=row.get('expiry_date'),
+            issue_place=row.get('issue_place'),
         )
 
     # ------------------------------------------------------------------
@@ -86,6 +90,10 @@ class DriverRepository:
         license_number: Optional[str] = None,
         category: str = 'A',
         photo_path: Optional[str] = None,
+        dob: Optional[str] = None,
+        gender: Optional[str] = None,
+        expiry_date: Optional[str] = None,
+        issue_place: Optional[str] = None,
     ) -> int:
         """
         Insert a new driver row and return the generated driver_id.
@@ -97,6 +105,10 @@ class DriverRepository:
             license_number: Driving licence number.
             category:       Comma-separated category codes, e.g. "A,B,C".
             photo_path:     Optional path to the saved enrollment photo on disk.
+            dob:            Date of birth (ISO YYYY-MM-DD).
+            gender:         Sex or gender.
+            expiry_date:    License expiry date (ISO YYYY-MM-DD).
+            issue_place:    Place of license issue.
 
         Returns:
             The new driver_id assigned by PostgreSQL.
@@ -105,11 +117,17 @@ class DriverRepository:
         with self._db() as cur:
             cur.execute(
                 """
-                INSERT INTO drivers (name, license_number, category, biometric_embedding, email, photo_path)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO drivers (
+                    name, license_number, category, biometric_embedding, 
+                    email, photo_path, dob, gender, expiry_date, issue_place
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING driver_id
                 """,
-                (name, license_number, category, embedding_blob, email, photo_path),
+                (
+                    name, license_number, category, embedding_blob, 
+                    email, photo_path, dob, gender, expiry_date, issue_place
+                ),
             )
             return cur.fetchone()['driver_id']
 

@@ -96,19 +96,32 @@ class DatabaseManager:
                     enrollment_date     TIMESTAMP DEFAULT NOW(),
                     email               TEXT,
                     status              TEXT    DEFAULT 'active',
-                    photo_path          TEXT
+                    photo_path          TEXT,
+                    dob                 DATE,
+                    gender              TEXT,
+                    expiry_date         DATE,
+                    issue_place         TEXT
                 )
             """)
 
-            # Ensure photo_path column exists on older databases
+            # Ensure additional columns exist on older databases
             cur.execute("""
                 DO $$
                 BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_name = 'drivers' AND column_name = 'photo_path'
-                    ) THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'drivers' AND column_name = 'photo_path') THEN
                         ALTER TABLE drivers ADD COLUMN photo_path TEXT;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'drivers' AND column_name = 'dob') THEN
+                        ALTER TABLE drivers ADD COLUMN dob DATE;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'drivers' AND column_name = 'gender') THEN
+                        ALTER TABLE drivers ADD COLUMN gender TEXT;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'drivers' AND column_name = 'expiry_date') THEN
+                        ALTER TABLE drivers ADD COLUMN expiry_date DATE;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'drivers' AND column_name = 'issue_place') THEN
+                        ALTER TABLE drivers ADD COLUMN issue_place TEXT;
                     END IF;
                 END $$;
             """)
@@ -173,9 +186,16 @@ class DatabaseManager:
         license_number: Optional[str] = None,
         category: str = 'A',
         photo_path: Optional[str] = None,
+        dob: Optional[str] = None,
+        gender: Optional[str] = None,
+        expiry_date: Optional[str] = None,
+        issue_place: Optional[str] = None,
     ) -> int:
         """Enroll a new driver and return the assigned driver_id."""
-        return self.driver_repo.enroll(name, embedding, email, license_number, category, photo_path)
+        return self.driver_repo.enroll(
+            name, embedding, email, license_number, category, photo_path, 
+            dob, gender, expiry_date, issue_place
+        )
 
     def get_driver(self, driver_id: int) -> Optional[Driver]:
         """Return a Driver by primary key, or None."""

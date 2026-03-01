@@ -378,7 +378,37 @@
                                 placeholder="Driver's Full Legal Name">
 
                             <div class="field-label">Driver License Number</div>
-                            <input type="text" class="text-input" id="enrollID" placeholder="e.g. DL-0012345">
+                            <input type="number" class="text-input" id="enrollID" placeholder="e.g. 10293847"
+                                pattern="[0-9]*" title="Only integer numbers are allowed">
+
+                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px;">
+                                <div>
+                                    <div class="field-label">Date of Birth</div>
+                                    <input type="date" class="text-input" id="enrollDOB">
+                                </div>
+                                <div>
+                                    <div class="field-label">Gender</div>
+                                    <select class="text-input" id="enrollGender">
+                                        <option value="">Select Gender</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div
+                                style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; margin-bottom: 8px;">
+                                <div>
+                                    <div class="field-label">License Expiry Date</div>
+                                    <input type="date" class="text-input" id="enrollExpiry">
+                                </div>
+                                <div>
+                                    <div class="field-label">Place of Issue</div>
+                                    <input type="text" class="text-input" id="enrollIssuePlace"
+                                        placeholder="e.g. London">
+                                </div>
+                            </div>
 
                             <div class="field-label mt">
                                 Categories

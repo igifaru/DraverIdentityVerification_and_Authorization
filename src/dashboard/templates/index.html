@@ -210,39 +210,155 @@
             <!-- ========== VIEW: SECURITY INCIDENTS ========== -->
             <div id="viewIncidents" class="view">
                 <div class="page-header">
-                    <h1>Security Incidents</h1>
-                    <p>Track and investigate unauthorized access attempts and system alerts.</p>
-                </div>
-
-                <div class="panel">
-                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-                        <span class="badge badge-danger" id="incidentCount">0 incidents today</span>
-                        <div style="flex:1;"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-end;width:100%;">
+                        <div>
+                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                                <h1 style="margin-bottom:0;">Security Monitoring</h1>
+                                <div id="securityHealthStatus"
+                                    style="padding:2px 8px; border-radius:4px; background:var(--ok-bg); color:var(--ok); font-size:11px; font-weight:700; display:flex; align-items:center; gap:5px;">
+                                    <i class="fas fa-circle" style="font-size:8px;"></i> SYSTEM HEALTH: NOMINAL
+                                </div>
+                            </div>
+                            <p>Deep-dive investigation of biometric anomalies and node activity logs.</p>
+                        </div>
                         <button class="btn btn-outline btn-sm" onclick="fetchUnauthorizedLogs()">
-                            <i class="fas fa-sync-alt"></i> Refresh
+                            <i class="fas fa-sync-alt"></i> Refresh Feed
                         </button>
                     </div>
+                </div>
 
+                <!-- Incident Summary Cards -->
+                <div class="summary-grid" style="margin-bottom:20px;">
+                    <div class="summary-card critical">
+                        <div class="card-label">Critical Alerts</div>
+                        <div class="card-value" id="countCritical">0</div>
+                        <div class="card-trend"><i class="fas fa-exclamation-triangle"></i> Access Denied</div>
+                    </div>
+                    <div class="summary-card suspicious">
+                        <div class="card-label">Low Confidence</div>
+                        <div class="card-value" id="countSuspicious">0</div>
+                        <div class="card-trend"><i class="fas fa-eye"></i> Pending Audit</div>
+                    </div>
+                    <div class="summary-card cleared">
+                        <div class="card-label">Resolved</div>
+                        <div class="card-value" id="countCleared">0</div>
+                        <div class="card-trend"><i class="fas fa-check-circle"></i> Authorized Access</div>
+                    </div>
+                    <div class="summary-card accent">
+                        <div class="card-label">Vehicles Active</div>
+                        <div class="card-value" id="countVehicles">0</div>
+                        <div class="card-trend"><i class="fas fa-wifi"></i> Online Sensors</div>
+                    </div>
+                </div>
+
+                <!-- Intelligence Summary Bar -->
+                <div class="panel"
+                    style="margin-bottom:24px; background:rgba(255,255,255,0.015); border-color:var(--border-mid); border-style:dashed; padding:16px 0;">
+                    <div style="display:flex; justify-content:space-around; align-items:center;">
+                        <div style="text-align:center; padding:0 20px;">
+                            <div
+                                style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; font-weight:700; letter-spacing:0.05em;">
+                                Repeated Violators</div>
+                            <div style="font-size:20px; font-weight:800; color:var(--err);" id="intelRepeated">0</div>
+                        </div>
+                        <div style="height:32px; width:1px; background:var(--border);"></div>
+                        <div style="text-align:center; padding:0 20px;">
+                            <div
+                                style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; font-weight:700; letter-spacing:0.05em;">
+                                Peak Incident Time</div>
+                            <div style="font-size:20px; font-weight:800; color:var(--warn);" id="intelPeak">--:--</div>
+                        </div>
+                        <div style="height:32px; width:1px; background:var(--border);"></div>
+                        <div style="text-align:center; padding:0 20px;">
+                            <div
+                                style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; font-weight:700; letter-spacing:0.05em;">
+                                Trend (24h)</div>
+                            <div style="font-size:20px; font-weight:800; color:var(--text);" id="intelTrend">--</div>
+                        </div>
+                        <div style="height:32px; width:1px; background:var(--border);"></div>
+                        <div style="text-align:center; padding:0 20px;">
+                            <div
+                                style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; font-weight:700; letter-spacing:0.05em;">
+                                Hotzone Vehicle</div>
+                            <div style="font-size:20px; font-weight:800; color:var(--accent);" id="intelTopNode">--
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Smart Filters -->
+                <div class="filter-panel panel" style="margin-bottom:20px; padding:16px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr; gap:16px;">
+                        <div>
+                            <div class="field-label"
+                                style="font-size:11px; margin-bottom:4px; text-transform:uppercase; color:var(--text-muted);">
+                                Severity Filter</div>
+                            <select class="text-input" id="filterSeverity" onchange="applyIncidentFilters()"
+                                style="padding:6px 12px; height:auto;">
+                                <option value="all">All Levels</option>
+                                <option value="critical">Critical (Unauthorized)</option>
+                                <option value="suspicious">Suspicious (Low Confidence)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div class="field-label"
+                                style="font-size:11px; margin-bottom:4px; text-transform:uppercase; color:var(--text-muted);">
+                                Vehicle ID</div>
+                            <input type="text" class="text-input" id="filterVehicle" placeholder="All Vehicles"
+                                oninput="applyIncidentFilters()" style="padding:6px 12px; height:auto;">
+                        </div>
+                        <div>
+                            <div class="field-label"
+                                style="font-size:11px; margin-bottom:4px; text-transform:uppercase; color:var(--text-muted);">
+                                Search by Time</div>
+                            <input type="text" class="text-input" id="filterTime" placeholder="e.g. 14:30"
+                                oninput="applyIncidentFilters()" style="padding:6px 12px; height:auto;">
+                        </div>
+                        <div style="display:flex; align-items:flex-end;">
+                            <button class="btn btn-outline" style="width:100%; padding:6px 0; font-size:13px;"
+                                onclick="resetIncidentFilters()">
+                                Reset Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" style="padding:0; overflow:hidden;">
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Timestamp</th>
-                                <th>Identity Guess</th>
-                                <th>Similarity</th>
+                                <th style="width:60px;">Snapshot</th>
+                                <th>Time</th>
                                 <th>Vehicle (Node)</th>
-                                <th>Location</th>
-                                <th>Actions</th>
+                                <th>Identity Match</th>
+                                <th>Confidence</th>
+                                <th>Status</th>
+                                <th style="text-align:right;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="incidentsTbody">
                             <tr>
-                                <td colspan="6" class="table-empty">No security incidents detected.</td>
+                                <td colspan="7" class="table-empty">No security incidents detected.</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
             <!-- /VIEW: INCIDENTS -->
+
+            <!-- Side Drawer for Incident Details -->
+            <div id="incidentDrawer" class="side-drawer">
+                <div class="drawer-overlay" onclick="closeIncidentDrawer()"></div>
+                <div class="drawer-content">
+                    <div class="drawer-header">
+                        <h2>Incident Investigation</h2>
+                        <button class="close-btn" onclick="closeIncidentDrawer()"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="drawer-body" id="incidentDetailContent">
+                        <!-- Populated dynamicly -->
+                    </div>
+                </div>
+            </div>
 
             <!-- ========== VIEW: ENROLLMENT ========== -->
             <div id="viewEnrollment" class="view">

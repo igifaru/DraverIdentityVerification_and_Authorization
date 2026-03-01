@@ -176,11 +176,16 @@ def get_status():
 
 @api_bp.route('/alerts', methods=['GET'])
 @login_required
-def get_alerts():
-    """Return unauthorized attempts with rich metadata for incident module."""
+def get_incidents():
+    """
+    Return verification logs with rich metadata for incident investigation.
+    Returns both authorized and unauthorized attempts to allow the monitoring
+    view to calculate suspicious vs cleared stats.
+    """
     engine = _get_engine()
-    limit = request.args.get('limit', 50, type=int)
-    logs = engine.db.get_unauthorized_attempts(limit=limit)
+    limit = request.args.get('limit', 100, type=int)
+    # Fetch all logs for better monitoring coverage
+    logs = engine.db.get_recent_logs(limit=limit)
     return jsonify([log.to_dict() for log in logs])
 
 

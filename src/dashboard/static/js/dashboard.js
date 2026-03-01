@@ -688,105 +688,282 @@ setInterval(fetchAlerts, 3000);
 // ------------------------------------------------------------------
 // Monitoring & Incident Module
 // ------------------------------------------------------------------
-let _incidentData = [];
+// ------------------------------------------------------------------
+// Security Incidents — fetch, filter, side-drawer
+// ------------------------------------------------------------------
+let _incidentData = []; // Full list of raw incidents
+let _filteredIncidents = []; // Currently filtered subset
 
 async function fetchUnauthorizedLogs() {
     const tbody = document.getElementById('incidentsTbody');
-    const badge = document.getElementById('incidentCount');
-
-    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Loading incidents…</td></tr>';
 
     try {
-        const res = await fetch('/api/alerts?limit=50');
+        const res = await fetch('/api/alerts?limit=100');
         if (!res.ok) throw new Error('Failed to fetch alerts');
 
         _incidentData = await res.json();
 
-        // Count today's incidents
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayCount = _incidentData.filter(i => i.timestamp.startsWith(todayStr)).length;
-        badge.textContent = `${todayCount} incident${todayCount !== 1 ? 's' : ''} today`;
+        // Populate summary cards (Top Section)
+        calculateIncidentSummary();
 
-        if (_incidentData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No security incidents detected.</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = _incidentData.map((incident, idx) => {
-            const ts = new Date(incident.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-            const similarity = (incident.similarity_score * 100).toFixed(1) + '%';
-            const guess = incident.driver_name || '<span style="color:var(--text-muted)">Unknown</span>';
-            const node = incident.system_id || '<span style="color:var(--text-muted)">Unknown Node</span>';
-            const loc = incident.location || '<span style="color:var(--text-muted)">Unknown Loc</span>';
-
-            return `<tr>
-                <td style="font-family:var(--font-mono); font-size:0.8rem;">${ts}</td>
-                <td style="font-weight:600;">${guess}</td>
-                <td>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span class="badge badge-muted">${similarity}</span>
-                        <div style="flex:1; width:60px; height:4px; background:var(--bg-raised); border-radius:2px;">
-                            <div style="width:${incident.similarity_score * 100}%; height:100%; background:var(--err); border-radius:2px;"></div>
-                        </div>
-                    </div>
-                </td>
-                <td style="font-family:var(--font-mono); font-size:0.8rem; color:var(--text-muted);">${node}</td>
-                <td style="color:var(--text-soft);">${loc}</td>
-                <td>
-                    <button class="btn btn-outline btn-sm" onclick="viewIncidentDetail(${idx})" style="padding:4px 10px; font-size:0.75rem;">
-                        <i class="fas fa-eye"></i> View
-                    </button>
-                </td>
-            </tr>`;
-        }).join('');
+        // Initial filter application (which shows all if no filters set)
+        applyIncidentFilters();
 
     } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="6" class="table-empty" style="color:var(--err)">Error loading incidents.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="table-empty" style="color:var(--err)">Error loading security feed.</td></tr>';
         console.error('[fetchUnauthorizedLogs]', err);
     }
 }
 
-function viewIncidentDetail(idx) {
-    const incident = _incidentData[idx];
-    if (!incident) return;
+function calculateIncidentSummary() {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const todayLogs = _incidentData.filter(i => i.timestamp && i.timestamp.startsWith(todayStr));
 
-    document.getElementById('incidTime').textContent = new Date(incident.timestamp).toLocaleString();
-    document.getElementById('incidSystem').textContent = incident.system_id || 'Unknown Vehicle Node';
-    document.getElementById('incidLocation').textContent = incident.location || 'Unknown Entrance';
-    document.getElementById('incidScore').textContent = (incident.similarity_score * 100).toFixed(2) + '% (Match Confidence)';
+    // --- 1. Basic Stats ---
+    const critical = todayLogs.filter(i => !i.authorized).length;
+    const suspicious = todayLogs.filter(i => i.authorized && i.similarity_score < 0.75).length;
+    const cleared = todayLogs.filter(i => i.authorized && i.similarity_score >= 0.75).length;
+    const vehicles = new Set(todayLogs.map(i => i.system_id)).size;
 
-    // Lighting condition logic
-    const brightness = incident.brightness;
-    let lightLabel = 'Normal';
-    if (brightness < _systemConfig.brightness_no_signal) lightLabel = 'Critical (No Signal)';
-    else if (brightness < _systemConfig.brightness_low_light) lightLabel = 'Low Light (Enhanced)';
-    document.getElementById('incidLight').textContent = `${lightLabel} (${brightness ? brightness.toFixed(1) : '—'})`;
+    document.getElementById('countCritical').textContent = critical;
+    document.getElementById('countSuspicious').textContent = suspicious;
+    document.getElementById('countCleared').textContent = cleared;
+    document.getElementById('countVehicles').textContent = vehicles;
 
-    document.getElementById('incidRetry').textContent = incident.retry_count > 0 ? `Attempt #${incident.retry_count + 1}` : 'First Attempt';
-    document.getElementById('incidRetry').style.color = incident.retry_count > 2 ? 'var(--err)' : 'var(--text-soft)';
+    // --- 2. Intelligent Context ---
 
-    const photo = document.getElementById('incidPhoto');
-    const photoContainer = photo.parentElement;
-    if (incident.image_path) {
-        photo.src = `/api/alerts/image/${incident.log_id}`;
-        photo.style.display = 'block';
-        const msg = photoContainer.querySelector('.no-img-msg');
-        if (msg) msg.remove();
-    } else {
-        photo.src = '';
-        photo.style.display = 'none';
-        if (!photoContainer.querySelector('.no-img-msg')) {
-            const div = document.createElement('div');
-            div.className = 'no-img-msg';
-            div.style.cssText = 'padding:40px; text-align:center; color:var(--text-muted);';
-            div.textContent = 'No image captured for this attempt';
-            photoContainer.appendChild(div);
-        }
+    // Repeated Attempts (Unauthorized rows where retry_count > 0 or multiple hits from same node in short time)
+    const unauthorized = todayLogs.filter(i => !i.authorized);
+    const repeated = unauthorized.filter(i => i.retry_count > 0).length;
+
+    // Peak Activity Time
+    const hourCounts = new Array(24).fill(0);
+    todayLogs.forEach(i => {
+        const h = new Date(i.timestamp).getHours();
+        hourCounts[h]++;
+    });
+    const maxHourCount = Math.max(...hourCounts);
+    const peakHourIndex = hourCounts.indexOf(maxHourCount);
+    const peakTimeDisplay = maxHourCount > 0 ? `${peakHourIndex.toString().padStart(2, '0')}:00` : '--:--';
+
+    // Hotzone Vehicle (Most active node)
+    const nodeCounts = {};
+    todayLogs.forEach(i => {
+        const n = i.system_id || 'Unknown';
+        nodeCounts[n] = (nodeCounts[n] || 0) + 1;
+    });
+    let topNode = '--';
+    let maxN = 0;
+    for (const node in nodeCounts) {
+        if (nodeCounts[node] > maxN) { maxN = nodeCounts[node]; topNode = node; }
     }
 
-    document.getElementById('incidentModal').classList.add('active');
+    // Trend (Last 60 mins vs previous 60 mins)
+    const oneHour = 60 * 60 * 1000;
+    const lastHourLogs = _incidentData.filter(i => (now - new Date(i.timestamp)) < oneHour).length;
+    const prevHourLogs = _incidentData.filter(i => {
+        const diff = now - new Date(i.timestamp);
+        return diff >= oneHour && diff < (twoHour = oneHour * 2);
+    }).length;
+
+    let trendText = '--';
+    if (prevHourLogs > 0) {
+        const pct = ((lastHourLogs - prevHourLogs) / prevHourLogs) * 100;
+        trendText = (pct >= 0 ? '↑ ' : '↓ ') + Math.abs(pct).toFixed(0) + '%';
+    } else if (lastHourLogs > 0) {
+        trendText = 'Rise';
+    }
+
+    // Populate Intelligence Bar
+    document.getElementById('intelRepeated').textContent = repeated;
+    document.getElementById('intelPeak').textContent = peakTimeDisplay;
+    document.getElementById('intelTrend').textContent = trendText;
+    document.getElementById('intelTopNode').textContent = topNode;
 }
 
-function closeIncidentModal() {
-    document.getElementById('incidentModal').classList.remove('active');
+function applyIncidentFilters() {
+    const severity = document.getElementById('filterSeverity').value;
+    const vehicle = document.getElementById('filterVehicle').value.toLowerCase();
+    const timeSearch = document.getElementById('filterTime').value;
+
+    _filteredIncidents = _incidentData.filter(i => {
+        // Severity
+        if (severity === 'critical' && i.authorized) return false;
+        if (severity === 'suspicious' && (!i.authorized || i.similarity_score >= 0.75)) return false;
+
+        // Vehicle
+        if (vehicle && !(i.system_id || '').toLowerCase().includes(vehicle)) return false;
+
+        // Time
+        if (timeSearch) {
+            const timePart = new Date(i.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
+            if (!timePart.includes(timeSearch)) return false;
+        }
+
+        return true;
+    });
+
+    renderIncidentTable();
+}
+
+function resetIncidentFilters() {
+    document.getElementById('filterSeverity').value = 'all';
+    document.getElementById('filterVehicle').value = '';
+    document.getElementById('filterTime').value = '';
+    applyIncidentFilters();
+}
+
+function renderIncidentTable() {
+    const tbody = document.getElementById('incidentsTbody');
+
+    if (_filteredIncidents.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="table-empty">No security incidents match the current filters.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = _filteredIncidents.map((incident, idx) => {
+        const ts = new Date(incident.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const date = new Date(incident.timestamp).toLocaleDateString([], { day: '2-digit', month: 'short' });
+
+        const score = (incident.similarity_score * 100).toFixed(1);
+        const name = incident.authorized ? (incident.driver_name || 'Authorized') : 'Unauthorized Attempt';
+        const node = incident.system_id || 'ID-UNKNOWN';
+
+        // Status Badge
+        let statusHtml = '';
+        if (!incident.authorized) {
+            statusHtml = '<span class="badge-saas unauthorized">Critical</span>';
+        } else if (incident.similarity_score < 0.75) {
+            statusHtml = '<span class="badge-saas suspicious">Low Conf</span>';
+        } else {
+            statusHtml = '<span class="badge-saas authorized">Cleared</span>';
+        }
+
+        // Confidence Bar
+        let barClass = 'low';
+        if (incident.similarity_score >= 0.75) barClass = 'high';
+        else if (incident.similarity_score >= 0.5) barClass = 'med';
+
+        // Snapshot Preview
+        const snapSrc = incident.image_path ? `/api/alerts/image/${incident.log_id}` : '';
+        const snapshotHtml = snapSrc
+            ? `<img src="${snapSrc}" class="snapshot-thumb" alt="Face">`
+            : `<div class="snapshot-thumb" style="display:flex;align-items:center;justify-content:center;background:var(--bg-raised);"><i class="fas fa-user-secret" style="font-size:14px;color:var(--text-muted);"></i></div>`;
+
+        return `<tr onclick="openIncidentDrawer(${idx})">
+            <td>${snapshotHtml}</td>
+            <td>
+                <div style="font-weight:600; font-size:13px;">${ts}</div>
+                <div style="font-size:11px; color:var(--text-muted);">${date}</div>
+            </td>
+            <td style="font-family:var(--font-mono); font-size:12px;">${node}</td>
+            <td style="font-weight:500;">${name}</td>
+            <td>
+                <div class="confidence-bar-container">
+                    <div class="confidence-bar ${barClass}" style="width:${score}%"></div>
+                </div>
+                <span style="font-size:11px; color:var(--text-soft); font-weight:600;">${score}%</span>
+            </td>
+            <td>${statusHtml}</td>
+            <td style="text-align:right;">
+                <button class="btn btn-outline btn-sm" style="padding:4px 10px; font-size:0.75rem;">
+                    Investigate
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function openIncidentDrawer(idx) {
+    const incident = _filteredIncidents[idx];
+    if (!incident) return;
+
+    const content = document.getElementById('incidentDetailContent');
+
+    // Calculate lighting status
+    const brightness = incident.brightness || 0;
+    let lightStatus = 'Optimal';
+    let lightIcon = 'fa-sun';
+    let lightColor = 'var(--ok)';
+
+    if (brightness < (_systemConfig?.brightness_no_signal || 10)) {
+        lightStatus = 'No Signal / Pitch Black';
+        lightIcon = 'fa-moon';
+        lightColor = 'var(--err)';
+    } else if (brightness < (_systemConfig?.brightness_low_light || 60)) {
+        lightStatus = 'Low Light Condition';
+        lightIcon = 'fa-cloud-moon';
+        lightColor = 'var(--warn)';
+    }
+
+    const name = incident.authorized ? (incident.driver_name || 'Driver') : 'Unauthorized Individual';
+    const retryLabel = incident.retry_count > 0 ? `Retry Attempt #${incident.retry_count + 1}` : 'Initial Capture';
+    const statusLabel = incident.authorized ? 'AUTHORIZED ACCESS' : 'SECURITY BREACH';
+    const statusColor = incident.authorized ? 'var(--ok)' : 'var(--err)';
+
+    content.innerHTML = `
+        <div style="text-align:center; margin-bottom:20px;">
+            <div style="font-size:11px; font-weight:700; color:${statusColor}; letter-spacing:0.1em; margin-bottom:8px;">${statusLabel}</div>
+            ${incident.image_path ?
+            `<img src="/api/alerts/image/${incident.log_id}" class="incident-large-img" alt="Primary Snapshot">` :
+            `<div class="incident-large-img" style="height:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--bg-raised); color:var(--text-muted);">
+                    <i class="fas fa-camera-slash" style="font-size:48px; margin-bottom:12px;"></i>
+                    <div style="font-size:12px;">No evidence image available</div>
+                </div>`
+        }
+        </div>
+
+        <div class="detail-section-title"><i class="fas fa-info-circle"></i> Biometric Analysis</div>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <div class="detail-label">Identity Match</div>
+                <div class="detail-value">${name}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Match Score</div>
+                <div class="detail-value" style="color:${incident.similarity_score > 0.75 ? 'var(--ok)' : 'var(--err)'}">
+                    ${(incident.similarity_score * 100).toFixed(2)}%
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-section-title"><i class="fas fa-microchip"></i> Hardware Context</div>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <div class="detail-label">Vehicle Node ID</div>
+                <div class="detail-value">${incident.system_id || 'UNKNOWN'}</div>
+            </div>
+             <div class="detail-item">
+                <div class="detail-label">Capture Mode</div>
+                <div class="detail-value">${retryLabel}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Camera Location</div>
+                <div class="detail-value">${incident.location || 'Entrance A'}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Environment</div>
+                <div class="detail-value" style="color:${lightColor}"><i class="fas ${lightIcon}"></i> ${lightStatus}</div>
+            </div>
+        </div>
+
+        <div class="detail-section-title"><i class="fas fa-clock"></i> Temporal Metadata</div>
+        <div style="background:var(--bg-surface); padding:16px; border-radius:var(--radius-sm);">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span style="font-size:12px; color:var(--text-soft);">Full Timestamp</span>
+                <span style="font-size:12px; font-weight:600; color:var(--text);">${new Date(incident.timestamp).toLocaleString()}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+                <span style="font-size:12px; color:var(--text-soft);">System Latency</span>
+                <span style="font-size:12px; font-weight:600; color:var(--text);">${incident.processing_time_ms.toFixed(0)}ms</span>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('incidentDrawer').classList.add('active');
+}
+
+function closeIncidentDrawer() {
+    document.getElementById('incidentDrawer').classList.remove('active');
 }

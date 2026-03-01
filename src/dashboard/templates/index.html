@@ -29,6 +29,11 @@
                 <span>Operations</span>
             </button>
 
+            <button class="nav-item" id="nav-incidents" onclick="switchView('incidents')">
+                <i class="fas fa-shield-virus"></i>
+                <span>Incidents</span>
+            </button>
+
             <button class="nav-item" id="nav-enrollment" onclick="switchView('enrollment')">
                 <i class="fas fa-user-plus"></i>
                 <span>Enrollment</span>
@@ -202,6 +207,43 @@
             </div>
             <!-- /VIEW: MANAGE DRIVERS -->
 
+            <!-- ========== VIEW: SECURITY INCIDENTS ========== -->
+            <div id="viewIncidents" class="view">
+                <div class="page-header">
+                    <h1>Security Incidents</h1>
+                    <p>Track and investigate unauthorized access attempts and system alerts.</p>
+                </div>
+
+                <div class="panel">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                        <span class="badge badge-danger" id="incidentCount">0 incidents today</span>
+                        <div style="flex:1;"></div>
+                        <button class="btn btn-outline btn-sm" onclick="fetchUnauthorizedLogs()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Identity Guess</th>
+                                <th>Similarity</th>
+                                <th>Vehicle (Node)</th>
+                                <th>Location</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incidentsTbody">
+                            <tr>
+                                <td colspan="6" class="table-empty">No security incidents detected.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- /VIEW: INCIDENTS -->
+
             <!-- ========== VIEW: ENROLLMENT ========== -->
             <div id="viewEnrollment" class="view">
                 <div class="page-header">
@@ -216,7 +258,8 @@
                         <!-- Left: form -->
                         <div>
                             <div class="field-label">Full Legal Name</div>
-                            <input type="text" class="text-input" id="enrollName" placeholder="e.g. Jane Smith">
+                            <input type="text" class="text-input" id="enrollName"
+                                placeholder="Driver's Full Legal Name">
 
                             <div class="field-label">Driver License Number</div>
                             <input type="text" class="text-input" id="enrollID" placeholder="e.g. DL-0012345">
@@ -340,6 +383,55 @@
         </div><!-- /scroll-area -->
     </main>
 
+    <!-- Incident Detail Modal -->
+    <div class="modal-overlay" id="incidentModal">
+        <div class="modal-box" style="max-width:600px;">
+            <div class="modal-title" style="color:var(--red);">
+                <i class="fas fa-triangle-exclamation" style="margin-right:8px;"></i>Security Incident Investigation
+            </div>
+
+            <div class="incident-detail-grid">
+                <!-- Captured face -->
+                <div class="incident-photo-well">
+                    <div class="field-label" style="text-align:center;">CAPTURED BIOCROP</div>
+                    <img id="incidPhoto" src="" alt="Captured attempt">
+                </div>
+
+                <!-- Info list -->
+                <div>
+                    <div class="incident-info-row">
+                        <span class="label">TIMESTAMP</span>
+                        <span class="value" id="incidTime">—</span>
+                    </div>
+                    <div class="incident-info-row">
+                        <span class="label">VEHICLE PLATE / NODE</span>
+                        <span class="value" id="incidSystem">—</span>
+                    </div>
+                    <div class="incident-info-row">
+                        <span class="label">LOCATION</span>
+                        <span class="value" id="incidLocation">—</span>
+                    </div>
+                    <div class="incident-info-row">
+                        <span class="label">CONFIDENCE SCORE</span>
+                        <span class="value" id="incidScore">—</span>
+                    </div>
+                    <div class="incident-info-row">
+                        <span class="label">LIGHTING (LUMINANCE)</span>
+                        <span class="value" id="incidLight">—</span>
+                    </div>
+                    <div class="incident-info-row">
+                        <span class="label">RETRY ATTEMPT</span>
+                        <span class="value" id="incidRetry" style="font-weight:700;">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="closeIncidentModal()">Close Investigation</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Driver Modal -->
     <div class="modal-overlay" id="editModal">
         <div class="modal-box">
@@ -349,7 +441,7 @@
             <input type="hidden" id="editDriverId">
 
             <div class="field-label">Full Legal Name</div>
-            <input type="text" class="text-input" id="editName" placeholder="Full name">
+            <input type="text" class="text-input" id="editName" placeholder="Full Legal Name">
 
             <div class="field-label">Licence Number</div>
             <input type="text" class="text-input" id="editLicense" placeholder="Licence number">

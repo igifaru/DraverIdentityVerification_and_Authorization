@@ -33,7 +33,6 @@ if __name__ == "__main__":
 
     # Ensure data directories exist
     os.makedirs(os.path.join(project_root, 'data', 'logs'), exist_ok=True)
-    os.makedirs(os.path.join(project_root, 'data', 'database'), exist_ok=True)
     os.makedirs(os.path.join(project_root, 'data', 'alerts'), exist_ok=True)
 
     # Run application

@@ -194,7 +194,27 @@ class Config:
     def owner_name(self) -> str:
         """Get owner name"""
         return self.get('system.owner_name', 'UNKNOWN-OWNER')
-    
+
+    @property
+    def admin_email(self) -> str:
+        """Get admin dashboard email"""
+        return self.get('system.admin_email', 'admin@gmail.com')
+
+    @property
+    def admin_password(self) -> str:
+        """Get admin dashboard password"""
+        return self.get('system.admin_password', 'admin123')
+
+    @property
+    def brightness_no_signal(self) -> float:
+        """Brightness threshold below which no signal is assumed"""
+        return self.get('verification.brightness_no_signal_threshold', 8.0)
+
+    @property
+    def brightness_low_light(self) -> float:
+        """Brightness threshold below which enhancement is needed"""
+        return self.get('verification.brightness_low_light_threshold', 40.0)
+
     def validate(self) -> bool:
         """Validate critical configuration parameters"""
         errors = []

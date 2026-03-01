@@ -13,10 +13,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from utils.config import config
 from database.db_manager import DatabaseManager
-from enrollment.camera_capture import CameraCapture
+from verification.video_stream import VideoStream
 from enrollment.face_processor import FaceProcessor
 from alerting.email_service import EmailService
-from alerting.logger import PerformanceLogger
 
 
 def test_configuration():
@@ -50,7 +49,7 @@ def test_database():
     
     try:
         db = DatabaseManager()
-        print(f"✓ Database initialized: {db.db_path}")
+        print(f"✓ Database initialized: {config.database_url}")
         
         stats = db.get_statistics()
         print(f"\nDatabase Statistics:")
@@ -73,9 +72,9 @@ def test_camera():
     print("="*60)
     
     try:
-        camera = CameraCapture()
+        camera = VideoStream()
         
-        if not camera.initialize():
+        if not camera.start():
             print("✗ Camera initialization FAILED")
             return False
         
@@ -87,16 +86,15 @@ def test_camera():
         
         if frame is None:
             print("✗ Frame capture FAILED")
-            camera.release()
+            camera.stop()
             return False
         
         print(f"✓ Frame captured: {frame.shape}")
         
-        # Test quality assessment
-        quality = camera.assess_frame_quality(frame)
-        print(f"  Frame quality: {quality:.2f}")
+        # Test quality assessment (via FaceProcessor.validate_face_quality)
+        # Or just skip it for simple camera test
         
-        camera.release()
+        camera.stop()
         print("\n✓ Camera test PASSED")
         return True
     
@@ -115,16 +113,16 @@ def test_face_detection():
     
     try:
         processor = FaceProcessor()
-        camera = CameraCapture()
+        camera = VideoStream()
         
-        if not camera.initialize():
+        if not camera.start():
             print("✗ Camera initialization FAILED")
             return False
         
         detected = False
         
         while True:
-            frame = camera.capture_frame()
+            frame = camera.read_frame()
             
             if frame is None:
                 break
@@ -163,7 +161,7 @@ def test_face_detection():
                 print("\nTest skipped")
                 break
         
-        camera.release()
+        camera.stop()
         import cv2
         cv2.destroyAllWindows()
         
@@ -205,27 +203,6 @@ def test_email():
         return False
 
 
-def test_logger():
-    """Test performance logger"""
-    print("\n" + "="*60)
-    print("TESTING PERFORMANCE LOGGER")
-    print("="*60)
-    
-    try:
-        logger = PerformanceLogger()
-        print(f"✓ Logger initialized: {logger.log_path}")
-        
-        stats = logger.get_statistics()
-        print(f"\nLog Statistics:")
-        print(f"  Total verifications: {stats.get('total_verifications', 0)}")
-        print(f"  Avg processing time: {stats.get('avg_processing_time_ms', 0):.2f} ms")
-        
-        print("\n✓ Logger test PASSED")
-        return True
-    
-    except Exception as e:
-        print(f"\n✗ Logger test FAILED: {e}")
-        return False
 
 
 def benchmark_embedding_generation():
@@ -328,12 +305,6 @@ def main():
     )
     
     parser.add_argument(
-        '--logger',
-        action='store_true',
-        help='Test performance logger'
-    )
-    
-    parser.add_argument(
         '--benchmark',
         action='store_true',
         help='Benchmark embedding generation'
@@ -343,7 +314,7 @@ def main():
     
     # If no specific test selected, run all
     if not any([args.config, args.database, args.camera, args.face_detection, 
-                args.email, args.logger, args.benchmark]):
+                args.email, args.benchmark]):
         args.all = True
     
     results = []
@@ -362,9 +333,6 @@ def main():
     
     if args.all or args.email:
         results.append(("Email Service", test_email()))
-    
-    if args.all or args.logger:
-        results.append(("Performance Logger", test_logger()))
     
     if args.all or args.benchmark:
         results.append(("Embedding Benchmark", benchmark_embedding_generation()))

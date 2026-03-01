@@ -67,6 +67,10 @@ class VerificationRepository:
             processing_time_ms=float(row['processing_time_ms'] or 0),
             image_path=row['image_path'],
             liveness_passed=bool(row['liveness_passed']),
+            system_id=row.get('system_id'),
+            brightness=row.get('brightness'),
+            location=row.get('location'),
+            retry_count=row.get('retry_count', 0),
         )
 
     # ------------------------------------------------------------------
@@ -88,8 +92,9 @@ class VerificationRepository:
                 """
                 INSERT INTO verification_logs
                     (driver_id, driver_name, similarity_score, authorized,
-                     processing_time_ms, image_path, liveness_passed)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                     processing_time_ms, image_path, liveness_passed,
+                     system_id, brightness, location, retry_count)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING log_id
                 """,
                 (
@@ -100,6 +105,10 @@ class VerificationRepository:
                     log.processing_time_ms,
                     log.image_path,
                     log.liveness_passed,
+                    log.system_id,
+                    log.brightness,
+                    log.location,
+                    log.retry_count,
                 ),
             )
             return cur.fetchone()['log_id']

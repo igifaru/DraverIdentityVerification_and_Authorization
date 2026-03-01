@@ -64,12 +64,14 @@ class FaceProcessor:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         return float(gray.mean())
 
-    # Brightness thresholds
-    # Below NO_SIGNAL  : completely dark / camera blocked  → reject, don't enhance
-    # Below LOW_LIGHT  : dim but workable                  → enhance, then detect
-    # Above LOW_LIGHT  : normal conditions                 → detect raw, enhance only as fallback
-    _BRIGHTNESS_NO_SIGNAL  = 8     # CLAHE cannot manufacture data that does not exist
-    _BRIGHTNESS_LOW_LIGHT  = 40    # usable dim light — CLAHE gives meaningful boost
+    # Brightness thresholds from config
+    @property
+    def _brightness_no_signal(self) -> float:
+        return config.brightness_no_signal
+
+    @property
+    def _brightness_low_light(self) -> float:
+        return config.brightness_low_light
 
     # ------------------------------------------------------------------
     # Detection
@@ -116,12 +118,12 @@ class FaceProcessor:
         brightness = self._brightness(image)
 
         # ——— Tier 1: completely dark / no signal ———
-        if brightness < self._BRIGHTNESS_NO_SIGNAL:
-            print(f"  MTCNN: skipped — no signal (brightness={brightness:.1f} < {self._BRIGHTNESS_NO_SIGNAL})")
+        if brightness < self._brightness_no_signal:
+            print(f"  MTCNN: skipped — no signal (brightness={brightness:.1f} < {self._brightness_no_signal})")
             return None
 
         # ——— Tier 2: dim but workable — enhance first ———
-        if brightness < self._BRIGHTNESS_LOW_LIGHT:
+        if brightness < self._brightness_low_light:
             img_to_use = image if pre_enhanced else self.enhance_frame(image)
             result = _run_mtcnn(img_to_use)
             if result is not None:
@@ -299,7 +301,7 @@ class FaceProcessor:
         brightness = self._brightness(image)
 
         # —— Tier 1: completely dark / no signal ——
-        if brightness < self._BRIGHTNESS_NO_SIGNAL:
+        if brightness < self._brightness_no_signal:
             reason = (
                 f"No signal — frame is too dark (brightness={brightness:.1f}). "
                 f"Camera may be blocked, lens covered, or no light source present."
@@ -308,7 +310,7 @@ class FaceProcessor:
             return None, reason
 
         # —— Tier 2: dim but workable — enhance first ——
-        if brightness < self._BRIGHTNESS_LOW_LIGHT:
+        if brightness < self._brightness_low_light:
             working_image = self.enhance_frame(image)
             pre_enhanced  = True
         # —— Tier 3: normal light — use raw, CLAHE is fallback inside detect_face ——

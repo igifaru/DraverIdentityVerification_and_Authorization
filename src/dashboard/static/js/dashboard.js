@@ -55,6 +55,7 @@ applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
 // ------------------------------------------------------------------
 const VIEW_TITLES = {
     dashboard: 'Operations Center',
+    incidents: 'Security Monitoring',
     enrollment: 'Biometric Enrollment',
     audit: 'Audit Logs',
     drivers: 'Manage Drivers',
@@ -71,17 +72,21 @@ function switchView(id) {
 
     if (id === 'audit') fetchAuditLogs();
     if (id === 'drivers') fetchDrivers();
+    if (id === 'incidents') fetchUnauthorizedLogs();
 }
 
 // ------------------------------------------------------------------
 // Update system status chip
 // ------------------------------------------------------------------
-function setChip(running) {
+function setChip(status) {
     const chip = document.getElementById('sysChip');
     const label = document.getElementById('sysChipLabel');
-    if (running) {
+    if (status === 'active') {
         chip.className = 'sys-chip running';
-        label.textContent = 'System Running';
+        label.textContent = 'System Active';
+    } else if (status === 'standby') {
+        chip.className = 'sys-chip stopped';
+        label.textContent = 'Standby Mode';
     } else {
         chip.className = 'sys-chip stopped';
         label.textContent = 'System Idle';
@@ -99,7 +104,10 @@ async function fetchDashboard() {
         const statusRes = await fetch('/api/status');
         if (statusRes.ok) {
             const statusData = await statusRes.json();
-            setChip(statusData.system_status === 'active');
+            setChip(statusData.system_status);
+            if (statusData.config) {
+                _systemConfig = statusData.config;
+            }
         }
 
         // All drivers data
@@ -592,12 +600,12 @@ async function deleteDriver(driverId, driverName) {
     }
 }
 
-// ------------------------------------------------------------------
-// Bootstrap
-// ------------------------------------------------------------------
-// Initialise the alert cursor to "now" so we don't replay old toasts
-// on every page load, but still show the alert panel for recent events.
+// Alert polling cursor initialized to current time (unix seconds)
 let _alertCursor = Date.now() / 1000;
+let _systemConfig = {
+    brightness_no_signal: 8,
+    brightness_low_light: 40
+};
 
 async function fetchAlerts() {
     try {
@@ -605,7 +613,7 @@ async function fetchAlerts() {
         const list = await res.json();
         if (!list.length) return;
         // Advance cursor so next poll won't repeat these events
-        _alertCursor = Math.max(...list.map(a => a.unix_ts));
+        _alertCursor = Math.max(...list.map(a => a.unix_ts || 0));
         // Show a toast for each new unauthorized event
         list.forEach(a => showToast(a));
     } catch (e) {
@@ -671,6 +679,114 @@ function dismissToast(el) {
 fetchDashboard();
 setInterval(fetchDashboard, 3000);
 
+// Explicitly stop camera when dashboard loads in case of stray sessions
+fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
+
 fetchAlerts();
 setInterval(fetchAlerts, 3000);
 
+// ------------------------------------------------------------------
+// Monitoring & Incident Module
+// ------------------------------------------------------------------
+let _incidentData = [];
+
+async function fetchUnauthorizedLogs() {
+    const tbody = document.getElementById('incidentsTbody');
+    const badge = document.getElementById('incidentCount');
+
+    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Loading incidents…</td></tr>';
+
+    try {
+        const res = await fetch('/api/alerts?limit=50');
+        if (!res.ok) throw new Error('Failed to fetch alerts');
+
+        _incidentData = await res.json();
+
+        // Count today's incidents
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayCount = _incidentData.filter(i => i.timestamp.startsWith(todayStr)).length;
+        badge.textContent = `${todayCount} incident${todayCount !== 1 ? 's' : ''} today`;
+
+        if (_incidentData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No security incidents detected.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = _incidentData.map((incident, idx) => {
+            const ts = new Date(incident.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+            const similarity = (incident.similarity_score * 100).toFixed(1) + '%';
+            const guess = incident.driver_name || '<span style="color:var(--text-muted)">Unknown</span>';
+            const node = incident.system_id || '<span style="color:var(--text-muted)">Unknown Node</span>';
+            const loc = incident.location || '<span style="color:var(--text-muted)">Unknown Loc</span>';
+
+            return `<tr>
+                <td style="font-family:var(--font-mono); font-size:0.8rem;">${ts}</td>
+                <td style="font-weight:600;">${guess}</td>
+                <td>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="badge badge-muted">${similarity}</span>
+                        <div style="flex:1; width:60px; height:4px; background:var(--bg-raised); border-radius:2px;">
+                            <div style="width:${incident.similarity_score * 100}%; height:100%; background:var(--err); border-radius:2px;"></div>
+                        </div>
+                    </div>
+                </td>
+                <td style="font-family:var(--font-mono); font-size:0.8rem; color:var(--text-muted);">${node}</td>
+                <td style="color:var(--text-soft);">${loc}</td>
+                <td>
+                    <button class="btn btn-outline btn-sm" onclick="viewIncidentDetail(${idx})" style="padding:4px 10px; font-size:0.75rem;">
+                        <i class="fas fa-eye"></i> View
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+
+    } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="6" class="table-empty" style="color:var(--err)">Error loading incidents.</td></tr>';
+        console.error('[fetchUnauthorizedLogs]', err);
+    }
+}
+
+function viewIncidentDetail(idx) {
+    const incident = _incidentData[idx];
+    if (!incident) return;
+
+    document.getElementById('incidTime').textContent = new Date(incident.timestamp).toLocaleString();
+    document.getElementById('incidSystem').textContent = incident.system_id || 'Unknown Vehicle Node';
+    document.getElementById('incidLocation').textContent = incident.location || 'Unknown Entrance';
+    document.getElementById('incidScore').textContent = (incident.similarity_score * 100).toFixed(2) + '% (Match Confidence)';
+
+    // Lighting condition logic
+    const brightness = incident.brightness;
+    let lightLabel = 'Normal';
+    if (brightness < _systemConfig.brightness_no_signal) lightLabel = 'Critical (No Signal)';
+    else if (brightness < _systemConfig.brightness_low_light) lightLabel = 'Low Light (Enhanced)';
+    document.getElementById('incidLight').textContent = `${lightLabel} (${brightness ? brightness.toFixed(1) : '—'})`;
+
+    document.getElementById('incidRetry').textContent = incident.retry_count > 0 ? `Attempt #${incident.retry_count + 1}` : 'First Attempt';
+    document.getElementById('incidRetry').style.color = incident.retry_count > 2 ? 'var(--err)' : 'var(--text-soft)';
+
+    const photo = document.getElementById('incidPhoto');
+    const photoContainer = photo.parentElement;
+    if (incident.image_path) {
+        photo.src = `/api/alerts/image/${incident.log_id}`;
+        photo.style.display = 'block';
+        const msg = photoContainer.querySelector('.no-img-msg');
+        if (msg) msg.remove();
+    } else {
+        photo.src = '';
+        photo.style.display = 'none';
+        if (!photoContainer.querySelector('.no-img-msg')) {
+            const div = document.createElement('div');
+            div.className = 'no-img-msg';
+            div.style.cssText = 'padding:40px; text-align:center; color:var(--text-muted);';
+            div.textContent = 'No image captured for this attempt';
+            photoContainer.appendChild(div);
+        }
+    }
+
+    document.getElementById('incidentModal').classList.add('active');
+}
+
+function closeIncidentModal() {
+    document.getElementById('incidentModal').classList.remove('active');
+}

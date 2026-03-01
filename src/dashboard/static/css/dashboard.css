@@ -1264,3 +1264,52 @@ nav.sidebar-nav {
     font-size: 0.72rem;
     min-width: 54px;
 }
+
+
+/* Incident detail styling */
+.incident-detail-grid {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+.incident-photo-well {
+    background: var(--bg-raised);
+    border: 1px solid var(--border-mid);
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.incident-photo-well img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-top: 8px;
+}
+
+.incident-info-row {
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.incident-info-row .label {
+    display: block;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 1.5px;
+    margin-bottom: 4px;
+}
+
+.incident-info-row .value {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--text);
+    font-family: var(--font-mono);
+}
+

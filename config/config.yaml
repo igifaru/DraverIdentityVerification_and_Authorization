@@ -7,6 +7,8 @@ verification:
   confidence_threshold: 0.95  # Minimum confidence for face detection
   enable_cooldown: false # Disabled for Phase 2: Rapid testing
   cooldown_seconds: 2.0 # Wait 2 seconds between verifications
+  brightness_no_signal_threshold: 8   # Completely dark / camera blocked
+  brightness_low_light_threshold: 40  # Low light (enables CLAHE enhancement)
 
 camera:
   resolution_width: 640
@@ -29,20 +31,24 @@ email:
   smtp_server: "smtp.gmail.com"
   smtp_port: 587
   sender_name: "Driver Verification System"
+  alert_recipients: ["admin@fleetops.com"]
   # Email credentials should be set in .env file
   # SMTP_EMAIL and SMTP_PASSWORD
 
 logging:
   log_path: "data/logs/verification_log.csv"
-  alert_image_path: "data/alerts/captured_images/"
+  alert_image_path: "data/alerts/captured_images/incident_biocrops/"
   max_log_entries: 10000  # Maximum entries before log rotation
   save_authorized_images: false  # Save images of authorized drivers
   save_unauthorized_images: true  # Save images of unauthorized attempts
 
 system:
-  system_id: "DRV-AX-9000"  # Unique software-based identifier for this instance
+  system_id: "DRV-AX-9000-NODE-1"  # Unique software-based identifier for this instance
   vehicle_plate: "KCB-884X"  # Registered plate number
+  location: "Main Cabin Entrance"  # Physical camera location label
   owner_name: "Fleet Ops - Sector 7"  # Vehicle owner/department
+  admin_email: "admin@gmail.com"
+  admin_password: "admin123"
   debug_mode: false  # Enable debug logging (set to false to avoid camera conflicts in dashboard)
   show_video_preview: true  # Show live video feed during verification
   enrollment_image_count: 5  # Number of images to capture during enrollment

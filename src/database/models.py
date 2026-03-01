@@ -6,6 +6,7 @@ Defines the database schema for the driver verification system
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
+import os
 import numpy as np
 
 
@@ -55,7 +56,7 @@ class Driver:
             'enrollment_date': self.enrollment_date.isoformat() if self.enrollment_date else None,
             'email': self.email,
             'status': self.status,
-            'photo_url': f'/api/driver-photo/{self.driver_id}' if self.photo_path else None,
+            'photo_url': f'/api/driver-photo/{self.driver_id}' if self.photo_path and os.path.isfile(self.photo_path) else None,
         }
 
 
@@ -71,6 +72,10 @@ class VerificationLog:
     processing_time_ms: float = 0.0
     image_path: Optional[str] = None
     liveness_passed: bool = False
+    system_id: Optional[str] = None
+    brightness: Optional[float] = None
+    location: Optional[str] = None
+    retry_count: int = 0
     
     def to_dict(self) -> dict:
         """Convert log to dictionary"""
@@ -84,6 +89,11 @@ class VerificationLog:
             'processing_time_ms': float(self.processing_time_ms or 0),
             'image_path': self.image_path,
             'liveness_passed': bool(self.liveness_passed),
+            'system_id': self.system_id,
+            'brightness': float(self.brightness) if self.brightness is not None else None,
+            'location': self.location,
+            'retry_count': int(self.retry_count),
+            'unix_ts': self.timestamp.timestamp() if self.timestamp else 0.0
         }
     
     def to_csv_row(self) -> dict:
@@ -96,7 +106,11 @@ class VerificationLog:
             'authorized': 'YES' if self.authorized else 'NO',
             'liveness_passed': 'YES' if self.liveness_passed else 'NO',
             'processing_time_ms': f"{self.processing_time_ms:.2f}",
-            'image_path': self.image_path if self.image_path else ''
+            'image_path': self.image_path if self.image_path else '',
+            'system_id': self.system_id or '',
+            'brightness': f"{self.brightness:.1f}" if self.brightness is not None else '',
+            'location': self.location or '',
+            'retry_count': self.retry_count
         }
 @dataclass
 class SystemAuditLog:

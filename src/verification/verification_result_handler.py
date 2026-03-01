@@ -6,13 +6,12 @@ import cv2
 import numpy as np
 from typing import Dict, Tuple
 from utils.config import config
-from utils.constants import (
-    COLOR_AUTHORIZED, 
-    COLOR_UNAUTHORIZED, 
-    COLOR_WARNING, 
-    FONT_SCALE_HEADER, 
-    FONT_THICKNESS
-)
+# --- Visual Constants ---
+COLOR_AUTHORIZED = (0, 255, 0)      # Green
+COLOR_UNAUTHORIZED = (0, 0, 255)    # Red
+COLOR_WARNING = (0, 165, 255)       # Orange
+FONT_SCALE_HEADER = 1.2
+FONT_THICKNESS = 2
 
 class VerificationResultHandler:
     """Manages visual presentation of verification results"""

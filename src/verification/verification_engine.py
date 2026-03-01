@@ -21,7 +21,6 @@ from enrollment.face_processor import FaceProcessor
 from database.db_manager import DatabaseManager
 from database.models import VerificationLog
 from utils.config import config
-from utils.constants import CAPTURED_IMAGES_DIR
 from alerting.email_service import EmailService
 
 
@@ -51,6 +50,7 @@ class VerificationEngine:
         
         self.is_running = False
         self.last_verification_time = 0
+        self.unauthorized_retry_count = 0
         
         # Cooldown Config
         self.enable_cooldown = config.get('verification.enable_cooldown', True)
@@ -65,9 +65,13 @@ class VerificationEngine:
         self.latest_frame = None
         self.latest_result = None  # Store last verification result
         
-        # Email Alerting
         self.email_service = EmailService()
         self.alert_recipients = config.get('email.alert_recipients', [])
+
+        # Camera idle timeout support
+        self._last_camera_activity = 0
+        self._camera_idle_seconds = 10.0  # Stop camera if no activity for 10s
+        self._last_activity_label = "none"
         
         print("[OK] Verification engine initialized\n")
     
@@ -184,16 +188,21 @@ class VerificationEngine:
             frame, is_authorized, driver_name
         )
 
+        # Populate incident metadata
+        result['system_id']  = config.system_id or 'Unknown Node'
+        result['location']   = config.get('system.location', 'Unknown Location')
+        result['brightness'] = self.face_processor._brightness(frame)
+
         return True, result
+
+    def record_camera_activity(self, label: str = "unknown"):
+        """Update the timestamp of last camera usage to stay alive."""
+        self._last_camera_activity = time.time()
+        self._last_activity_label = label
 
     
     def log_verification(self, result: dict):
-        """Log verification attempt to database.
-
-        psycopg2 cannot serialize numpy scalar types (numpy.bool_, numpy.float32,
-        numpy.int64, …).  We cast every field to the equivalent native Python type
-        before building the VerificationLog to avoid ProgrammingError at insert time.
-        """
+        """Log verification attempt to database with incident metadata."""
         log = VerificationLog(
             driver_id=int(result['driver_id']) if result['driver_id'] is not None else None,
             driver_name=result['driver_name'],
@@ -202,6 +211,10 @@ class VerificationEngine:
             processing_time_ms=float(result['processing_time_ms']),
             image_path=result['image_path'],
             liveness_passed=bool(result['liveness_passed']),
+            system_id=result.get('system_id'),
+            brightness=result.get('brightness'),
+            location=result.get('location'),
+            retry_count=result.get('retry_count', 0),
         )
 
         self.db.log_verification(log)
@@ -209,6 +222,7 @@ class VerificationEngine:
     def start_camera(self):
         """Start the video stream if not already running"""
         if not self.video_stream.is_running:
+             self.record_camera_activity(label='engine_starting')
              if self.video_stream.start():
                  print("Camera started successfully")
                  return True
@@ -248,7 +262,26 @@ class VerificationEngine:
                 try:
                     # If camera is not running, idle in standby
                     if not self.video_stream.is_running:
-                        time.sleep(0.5)
+                        if getattr(self, '_was_active', False):
+                            print("[engine] Camera stopped. Returning to STANDBY mode.")
+                            self._was_active = False
+                        
+                        # Heartbeat every 60s
+                        if time.time() - getattr(self, '_last_standby_log', 0) > 60:
+                            print("[engine] System idle. Monitoring for activation...")
+                            self._last_standby_log = time.time()
+                            
+                        time.sleep(1.0)
+                        continue
+                    
+                    if not getattr(self, '_was_active', False):
+                        print("[engine] Camera active. Face detection loop STARTED.")
+                        self._was_active = True
+
+                    # Check for camera idle timeout
+                    if time.time() - self._last_camera_activity > self._camera_idle_seconds:
+                        print(f"[engine] Camera idle for >{self._camera_idle_seconds}s. Stopping automatically.")
+                        self.video_stream.stop()
                         continue
 
                     # Read frame
@@ -274,11 +307,21 @@ class VerificationEngine:
                         # Tier 1: completely dark / no signal
                         # face_processor will also reject this, but set the message early
                         # so the status API reflects it even before verify_frame is called.
-                        is_no_signal = brightness < self.face_processor._BRIGHTNESS_NO_SIGNAL
+                        is_no_signal = brightness < self.face_processor._brightness_no_signal
                         is_low_light = (not is_no_signal and
-                                        brightness < self.face_processor._BRIGHTNESS_LOW_LIGHT)
+                                        brightness < self.face_processor._brightness_low_light)
 
                         success, result = self.verify_frame(frame, check_liveness=enable_liveness)
+
+                        # Retry count tracking
+                        if success:
+                            if result['authorized']:
+                                self.unauthorized_retry_count = 0  # Reset on success
+                            else:
+                                self.unauthorized_retry_count += 1 # Increment on fail
+
+                        # Inject current retry count into result for logging
+                        result['retry_count'] = self.unauthorized_retry_count
 
                         # Override status message for camera/light conditions
                         if is_no_signal and not success:

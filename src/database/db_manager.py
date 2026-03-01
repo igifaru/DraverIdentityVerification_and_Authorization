@@ -123,13 +123,31 @@ class DatabaseManager:
                     authorized         BOOLEAN,
                     processing_time_ms REAL,
                     image_path         TEXT,
-                    liveness_passed    BOOLEAN
+                    liveness_passed    BOOLEAN,
+                    system_id          TEXT,
+                    brightness         REAL,
+                    location           TEXT,
+                    retry_count        INTEGER DEFAULT 0
                 )
             """)
 
+            # Ensure new incident columns exist for older databases
             cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_verif_timestamp
-                ON verification_logs(timestamp DESC)
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'verification_logs' AND column_name = 'system_id') THEN
+                        ALTER TABLE verification_logs ADD COLUMN system_id TEXT;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'verification_logs' AND column_name = 'brightness') THEN
+                        ALTER TABLE verification_logs ADD COLUMN brightness REAL;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'verification_logs' AND column_name = 'location') THEN
+                        ALTER TABLE verification_logs ADD COLUMN location TEXT;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'verification_logs' AND column_name = 'retry_count') THEN
+                        ALTER TABLE verification_logs ADD COLUMN retry_count INTEGER DEFAULT 0;
+                    END IF;
+                END $$;
             """)
 
             cur.execute("""

@@ -200,6 +200,25 @@
     }
 
     /* ── Boot ───────────────────────────────────────────────────── */
-    startIdle();
+    if (!document.hidden) {
+        console.log('[driver] Tab visible on load, starting polling.');
+        startIdle();
+    } else {
+        console.log('[driver] Tab hidden on load, polling suspended.');
+    }
+
+    // Visibility awareness: suspend polling if the tab is hidden
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            stopPoll();
+            clearStable();
+            console.log('[driver] Tab hidden, polling suspended.');
+        } else {
+            console.log('[driver] Tab visible, polling resumed.');
+            if (state === 'idle' || state === 'detecting' || state === 'processing') {
+                startIdle();
+            }
+        }
+    });
 
 }());

@@ -38,15 +38,12 @@ def create_app() -> Flask:
         static_folder='static',
     )
 
-    # ------------------------------------------------------------------ #
-    # Security configuration                                               #
-    # ------------------------------------------------------------------ #
+    # Security configuration
     app.secret_key = secrets.token_hex(32)
 
-    # In a production deployment these should come from environment vars /
-    # a secrets manager, not be hardcoded here.
-    app.config['ADMIN_EMAIL']    = os.getenv('ADMIN_EMAIL', 'admin@gmail.com')
-    app.config['ADMIN_PASSWORD'] = os.getenv('ADMIN_PASSWORD', 'admin123')
+    # Auth credentials from config.yaml
+    app.config['ADMIN_EMAIL']    = config.admin_email
+    app.config['ADMIN_PASSWORD'] = config.admin_password
 
     # ------------------------------------------------------------------ #
     # Verification engine                                                  #

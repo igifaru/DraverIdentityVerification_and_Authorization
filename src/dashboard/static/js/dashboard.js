@@ -887,12 +887,10 @@ function calculateIncidentSummary() {
     // --- 1. Basic Stats ---
     const critical = todayLogs.filter(i => !i.authorized).length;
     const suspicious = todayLogs.filter(i => i.authorized && i.similarity_score < 0.75).length;
-    const cleared = todayLogs.filter(i => i.authorized && i.similarity_score >= 0.75).length;
     const vehicles = new Set(todayLogs.map(i => i.system_id)).size;
 
     document.getElementById('countCritical').textContent = critical;
     document.getElementById('countSuspicious').textContent = suspicious;
-    document.getElementById('countCleared').textContent = cleared;
     document.getElementById('countVehicles').textContent = vehicles;
 
     // --- 2. Intelligent Context ---

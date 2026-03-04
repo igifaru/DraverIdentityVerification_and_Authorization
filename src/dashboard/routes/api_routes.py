@@ -88,8 +88,11 @@ def driver_detect():
     """Fast face-presence check for the driver terminal idle state."""
     engine = _get_engine()
     engine.record_camera_activity(label='driver_detect')
+    
+    # DO NOT start the camera automatically on a passive detect hit.
+    # The camera should be started explicitly by the frontend only when focused.
     if not engine.video_stream.is_running:
-        engine.start_camera()
+        return jsonify({'face_present': False, 'confidence': 0.0, 'camera_off': True})
 
     frame = engine.video_stream.read_frame()
     if frame is None:
@@ -127,12 +130,11 @@ def driver_verify():
         engine.unauthorized_retry_count = 0 
     else:
         engine.unauthorized_retry_count += 1
-    
-    result['retry_count'] = engine.unauthorized_retry_count
-    engine.log_verification(result)
+        result['retry_count'] = engine.unauthorized_retry_count
+        log_id, is_new_incident = engine.log_verification(result)
 
-    if not result['authorized']:
-        engine._trigger_alert(result)
+        if is_new_incident:
+            engine._trigger_alert(result)
 
     state = 'authorized' if result['authorized'] else 'unauthorized'
     return jsonify({
@@ -174,15 +176,19 @@ def get_status():
 # Security Alerts & Incidents
 # ---------------------------------------------------------------------------
 
-@api_bp.route('/alerts', methods=['GET'])
+@api_bp.route('/alerts', methods=['GET', 'DELETE'])
 @login_required
 def get_incidents():
     """
-    Return verification logs with rich metadata for incident investigation.
-    Returns both authorized and unauthorized attempts to allow the monitoring
-    view to calculate suspicious vs cleared stats.
+    GET: Return verification logs with rich metadata for incident investigation.
+    DELETE: Clear all verification logs.
     """
     engine = _get_engine()
+    if request.method == 'DELETE':
+        count = engine.db.clear_all_verification_logs()
+        engine.db.log_audit('CLEAR_ALERTS_LOGS', _current_user(), f'Cleared {count} alerts', request.remote_addr)
+        return jsonify({'success': True, 'deleted': count})
+
     limit = request.args.get('limit', 100, type=int)
     # Fetch all logs for better monitoring coverage
     logs = engine.db.get_recent_logs(limit=limit)
@@ -412,4 +418,16 @@ def stop_camera():
     if engine.video_stream.is_running:
         engine.video_stream.stop()
         return jsonify({'success': True})
+    return jsonify({'success': True})
+
+
+@api_bp.route('/driver/camera/start', methods=['POST'])
+def start_camera_public():
+    """Explicitly start the camera from the driver terminal (public)."""
+    engine = _get_engine()
+    # Record activity to prevent immediate timeout
+    engine.record_camera_activity(label='public_start_request')
+    if not engine.video_stream.is_running:
+        success = engine.start_camera()
+        return jsonify({'success': success})
     return jsonify({'success': True})

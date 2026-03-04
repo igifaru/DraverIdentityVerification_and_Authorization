@@ -69,8 +69,9 @@ class VerificationEngine:
         self.alert_recipients = config.get('email.alert_recipients', [])
 
         # Camera idle timeout support
-        self._last_camera_activity = 0
-        self._camera_idle_seconds = 10.0  # Stop camera if no activity for 10s
+        self._camera_lock = threading.Lock() # Lock for camera start/stop
+        self._last_camera_activity = time.time() # Initialize to now to prevent immediate timeout
+        self._camera_idle_seconds = 15.0  # Increased to 15s for stability
         self._last_activity_label = "none"
         
         print("[OK] Verification engine initialized\n")
@@ -201,7 +202,7 @@ class VerificationEngine:
         self._last_activity_label = label
 
     
-    def log_verification(self, result: dict):
+    def log_verification(self, result: dict) -> Tuple[int, bool]:
         """Log verification attempt to database with incident metadata."""
         log = VerificationLog(
             driver_id=int(result['driver_id']) if result['driver_id'] is not None else None,
@@ -217,19 +218,20 @@ class VerificationEngine:
             retry_count=result.get('retry_count', 0),
         )
 
-        self.db.log_verification(log)
+        return self.db.log_verification(log)
     
     def start_camera(self):
-        """Start the video stream if not already running"""
-        if not self.video_stream.is_running:
-             self.record_camera_activity(label='engine_starting')
-             if self.video_stream.start():
-                 print("Camera started successfully")
-                 return True
-             else:
-                 print("ERROR: Failed to start camera")
-                 return False
-        return True
+        """Start the video stream if not already running (Thread Safe)"""
+        with self._camera_lock:
+            if not self.video_stream.is_running:
+                 self.record_camera_activity(label='engine_starting')
+                 if self.video_stream.start():
+                     print("Camera started successfully")
+                     return True
+                 else:
+                     print("ERROR: Failed to start camera")
+                     return False
+            return True
 
     def run_continuous_verification(self, show_preview: bool = True, enable_liveness: Optional[bool] = None):
         """Run continuous verification loop.
@@ -339,18 +341,12 @@ class VerificationEngine:
                         if success:
                             verification_count += 1
                             self.last_verification_time = current_time
-                            self.log_verification(result)
-
-                            if show_preview:
-                                print(f"\n[{datetime.now().strftime('%H:%M:%S')}] "
-                                      f"Verification #{verification_count}")
-                                print(f"  Status: {result['status_message']}")
-                                print(f"  Processing Time: {result['processing_time_ms']:.2f} ms")
-
-                            # Alert for every unauthorized result
-                            # (no-signal frames never reach here — verify_frame returns False)
                             if not result['authorized']:
-                                self._trigger_alert(result)
+                                log_id, is_new_incident = self.log_verification(result)
+
+                                # Alert only if this is a fresh incident (avoid email spam)
+                                if is_new_incident:
+                                    self._trigger_alert(result)
 
                         # Draw result on frame
                         display_frame = self.result_handler.draw_result(display_frame, result)

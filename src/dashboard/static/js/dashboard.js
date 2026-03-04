@@ -750,6 +750,26 @@ async function fetchUnauthorizedLogs() {
     }
 }
 
+async function clearAllLogs() {
+    if (!confirm('Are you sure you want to permanently delete all security logs? This action cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/alerts', { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            notify(`Deleted ${data.deleted} security logs successfully.`, 'success');
+            fetchUnauthorizedLogs();
+        } else {
+            notify(data.error || 'Failed to clear logs.', 'error');
+        }
+    } catch (err) {
+        console.error('[clearAllLogs error]', err);
+        notify('Network error clearing logs.', 'error');
+    }
+}
+
 function calculateIncidentSummary() {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];

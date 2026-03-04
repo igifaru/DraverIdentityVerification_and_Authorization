@@ -233,7 +233,7 @@ class DatabaseManager:
     # Verification log operations  (delegates to VerificationRepository)
     # ==================================================================
 
-    def log_verification(self, log: VerificationLog) -> int:
+    def log_verification(self, log: VerificationLog) -> Tuple[int, bool]:
         """Persist a verification event and return its log_id."""
         return self.verification_repo.log_verification(log)
 
@@ -248,6 +248,10 @@ class DatabaseManager:
     def get_unauthorized_attempts(self, limit: int = 50) -> List[VerificationLog]:
         """Return recent unauthorized access attempts."""
         return self.verification_repo.get_unauthorized(limit)
+
+    def clear_all_verification_logs(self) -> int:
+        """Clear all verification logs and return count of deleted rows."""
+        return self.verification_repo.clear_all_logs()
 
     def get_statistics(self) -> dict:
         """Return overall verification statistics plus total active driver count."""

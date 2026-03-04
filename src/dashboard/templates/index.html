@@ -223,9 +223,15 @@
                             </div>
                             <p>Deep-dive investigation of biometric anomalies and node activity logs.</p>
                         </div>
-                        <button class="btn btn-outline btn-sm" onclick="fetchUnauthorizedLogs()">
-                            <i class="fas fa-sync-alt"></i> Refresh Feed
-                        </button>
+                        <div style="display:flex;gap:10px;">
+                            <button class="btn btn-outline btn-sm" onclick="clearAllLogs()"
+                                style="border-color:var(--err);color:var(--err);">
+                                <i class="fas fa-trash-alt"></i> Clear Logs
+                            </button>
+                            <button class="btn btn-outline btn-sm" onclick="fetchUnauthorizedLogs()">
+                                <i class="fas fa-sync-alt"></i> Refresh Feed
+                            </button>
+                        </div>
                     </div>
                 </div>
 

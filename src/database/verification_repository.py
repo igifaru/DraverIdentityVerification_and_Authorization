@@ -9,7 +9,7 @@ Design notes:
 
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Callable, List
+from typing import Callable, List, Tuple
 
 import psycopg2
 import psycopg2.extras
@@ -77,7 +77,7 @@ class VerificationRepository:
     # Write operations
     # ------------------------------------------------------------------
 
-    def log_verification(self, log: VerificationLog) -> int:
+    def log_verification(self, log: VerificationLog) -> Tuple[int, bool]:
         """
         Insert a verification event row and return the generated log_id.
 
@@ -85,9 +85,39 @@ class VerificationRepository:
             log: Populated VerificationLog dataclass (log_id will be ignored).
 
         Returns:
-            The new log_id assigned by PostgreSQL.
+            Tuple of (log_id, is_new_incident)
         """
         with self._db() as cur:
+            if not log.authorized:
+                # Deduplicate rapid repeated unauthorized attempts
+                cur.execute(
+                    """
+                    SELECT log_id, retry_count FROM verification_logs
+                    WHERE authorized = FALSE
+                      AND driver_name IS NOT DISTINCT FROM %s
+                      AND system_id IS NOT DISTINCT FROM %s
+                      AND timestamp > NOW() - INTERVAL '5 minutes'
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                    """,
+                    (log.driver_name, log.system_id)
+                )
+                recent = cur.fetchone()
+                if recent:
+                    new_retry = recent['retry_count'] + 1
+                    cur.execute(
+                        """
+                        UPDATE verification_logs
+                        SET retry_count = %s,
+                            timestamp = CURRENT_TIMESTAMP,
+                            similarity_score = %s,
+                            image_path = %s
+                        WHERE log_id = %s
+                        """,
+                        (new_retry, log.similarity_score, log.image_path, recent['log_id'])
+                    )
+                    return recent['log_id'], False
+
             cur.execute(
                 """
                 INSERT INTO verification_logs
@@ -111,7 +141,13 @@ class VerificationRepository:
                     log.retry_count,
                 ),
             )
-            return cur.fetchone()['log_id']
+            return cur.fetchone()['log_id'], True
+
+    def clear_all_logs(self) -> int:
+        """Clear all verification logs and return count of deleted rows."""
+        with self._db() as cur:
+            cur.execute("DELETE FROM verification_logs")
+            return cur.rowcount
 
     # ------------------------------------------------------------------
     # Read operations

@@ -112,8 +112,20 @@ class FaceProcessor:
             detections = self.detector.detect_faces(rgb)
             if not detections:
                 return None
-            best = max(detections, key=lambda x: x['confidence'])
-            return best if best['confidence'] >= min_confidence else None
+            
+            # Prevent false positive hallucination by enforcing a minimum bounding box size
+            valid_detections = [
+                d for d in detections 
+                if d['confidence'] >= min_confidence 
+                   and d['box'][2] >= 50 
+                   and d['box'][3] >= 50
+            ]
+            
+            if not valid_detections:
+                return None
+                
+            best = max(valid_detections, key=lambda x: x['confidence'])
+            return best
 
         brightness = self._brightness(image)
 

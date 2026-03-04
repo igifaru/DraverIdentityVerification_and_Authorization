@@ -43,7 +43,9 @@
     let pollTimer = null;
     let stableTimer = null;
     let resetTimer = null;
+    let checkStableTimer = null;
     let verifying = false;
+    let isStartingCamera = false; // Lock to prevent multiple concurrent start requests
 
     /* ── Helpers ──────────────────────────────────────────────────── */
     function setState(s) {
@@ -65,10 +67,11 @@
 
     function clearStable() {
         if (stableTimer) { clearTimeout(stableTimer); stableTimer = null; }
+        if (checkStableTimer) { clearInterval(checkStableTimer); checkStableTimer = null; }
     }
 
     function stopPoll() {
-        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
     }
 
     /* ── Clock ────────────────────────────────────────────────────── */
@@ -99,25 +102,60 @@
     }
 
     /* ── IDLE: poll for a face ──────────────────────────────────── */
-    function startIdle() {
+    async function startIdle() {
         setState('idle');
         verifying = false;
         stopPoll();
         clearStable();
         clearReset();
 
-        pollTimer = setInterval(async () => {
-            if (state !== 'idle') return;
+        async function poll() {
+            if (state !== 'idle' || pollTimer === null) return;
+
+            // STRICT CHECK: Only poll if the tab is visible AND the window has focus.
+            // This prevents background tabs or tabs in unfocused windows from starting the camera.
+            const isVisible = document.visibilityState === 'visible';
+            const isFocused = document.hasFocus();
+
+            if (!isVisible || !isFocused) {
+                pollTimer = setTimeout(poll, DETECT_POLL_MS);
+                return;
+            }
+
             try {
                 const res = await fetch('/api/driver/detect');
                 const data = await res.json();
+
+                // If the backend says camera is OFF, and we are visible/focused, wake it up!
+                if (data.camera_off) {
+                    if (!isStartingCamera) {
+                        isStartingCamera = true;
+                        console.log('[driver] Camera is OFF, requesting start...');
+                        try {
+                            const startRes = await fetch('/api/driver/camera/start', { method: 'POST' });
+                            const startData = await startRes.json();
+                            if (!startData.success) {
+                                console.error('[driver] Failed to start camera backend.');
+                            }
+                        } finally {
+                            isStartingCamera = false;
+                        }
+                    }
+                    pollTimer = setTimeout(poll, 1500); // Wait longer if starting
+                    return;
+                }
+
                 if (data.face_present) {
                     onFaceDetected();
+                    return; // onFaceDetected handles next state
                 }
             } catch (e) {
                 console.warn('[driver] detect error:', e.message);
             }
-        }, DETECT_POLL_MS);
+            pollTimer = setTimeout(poll, DETECT_POLL_MS);
+        }
+
+        pollTimer = setTimeout(poll, DETECT_POLL_MS);
     }
 
     /* ── DETECTING: stable 2-second countdown ──────────────────── */
@@ -129,14 +167,13 @@
 
         // Keep checking — if face disappears, abort
         let lostCount = 0;
-        const checkStable = setInterval(async () => {
+        checkStableTimer = setInterval(async () => {
             try {
                 const res = await fetch('/api/driver/detect');
                 const data = await res.json();
                 if (!data.face_present) {
                     lostCount++;
                     if (lostCount >= 2) {          // 2 misses in a row = lost
-                        clearInterval(checkStable);
                         clearStable();
                         startIdle();               // back to idle
                         return;
@@ -149,13 +186,14 @@
 
         // After STABLE_MS → fire full verification
         stableTimer = setTimeout(() => {
-            clearInterval(checkStable);
+            clearStable();
             startVerification();
         }, STABLE_MS);
     }
 
     /* ── PROCESSING: call /api/driver/verify ───────────────────── */
     async function startVerification() {
+        if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
         if (verifying) return;
         verifying = true;
         setState('processing');
@@ -200,25 +238,35 @@
     }
 
     /* ── Boot ───────────────────────────────────────────────────── */
-    if (!document.hidden) {
-        console.log('[driver] Tab visible on load, starting polling.');
-        startIdle();
-    } else {
-        console.log('[driver] Tab hidden on load, polling suspended.');
-    }
-
-    // Visibility awareness: suspend polling if the tab is hidden
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
+    function checkAndStart() {
+        if (document.visibilityState === 'visible' && document.hasFocus()) {
+            console.log('[driver] Tab is visible and focused. Starting polling.');
+            startIdle();
+        } else {
+            console.log('[driver] Tab is backgrounded or unfocused. Polling suspended.');
             stopPoll();
             clearStable();
-            console.log('[driver] Tab hidden, polling suspended.');
-        } else {
-            console.log('[driver] Tab visible, polling resumed.');
-            if (state === 'idle' || state === 'detecting' || state === 'processing') {
-                startIdle();
-            }
         }
+    }
+
+    // Run once on load
+    checkAndStart();
+
+    // Visibility awareness: Tab switching
+    document.addEventListener('visibilitychange', () => {
+        console.log('[driver] Visibility changed:', document.visibilityState);
+        checkAndStart();
+    });
+
+    // Focus awareness: Window switching
+    window.addEventListener('focus', () => {
+        console.log('[driver] Window focused.');
+        checkAndStart();
+    });
+
+    window.addEventListener('blur', () => {
+        console.log('[driver] Window blurred.');
+        checkAndStart();
     });
 
 }());

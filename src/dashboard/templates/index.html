@@ -67,6 +67,24 @@
 
             <div class="top-bar-right">
 
+                <!-- Notifications dropdown -->
+                <div class="notifications-wrapper" id="notificationsWrapper">
+                    <button class="btn-theme" id="btnNotifications" onclick="toggleNotifications()">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+                    </button>
+                    <!-- Dropdown panel -->
+                    <div class="notifications-dropdown" id="notificationsDropdown">
+                        <div class="notifications-header">
+                            <h3>Unread Alerts</h3>
+                            <button class="mark-read-btn" onclick="clearUnreadAlerts()">Mark all read</button>
+                        </div>
+                        <div class="notifications-body" id="notificationsList">
+                            <div class="empty-state">No new alerts</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="sys-chip stopped" id="sysChip">
                     <span class="dot"></span>
                     <span id="sysChipLabel">System Idle</span>

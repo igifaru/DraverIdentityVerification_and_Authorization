@@ -169,6 +169,15 @@ class VerificationEngine:
         is_authorized, driver_id, driver_name, similarity = \
             self.face_matcher.verify_identity(embedding)
 
+        # ---- Step 5: Category check ----
+        if is_authorized and driver_id is not None:
+            driver_record = self.db.get_driver(driver_id)
+            if driver_record:
+                req_category = config.vehicle_category.strip().upper()
+                if req_category not in driver_record.categories:
+                    is_authorized = False
+                    result['status_message'] = f"UNAUTHORIZED: Vehicle requires '{req_category}', driver has [{driver_record.categories_display}]"
+
         result['authorized']       = is_authorized
         result['driver_id']        = driver_id
         result['driver_name']      = driver_name
@@ -177,11 +186,11 @@ class VerificationEngine:
 
         if is_authorized:
             result['status_message'] = f"AUTHORIZED: {driver_name} ({similarity:.3f})"
-        elif driver_id:
+        elif driver_id and 'Category mismatch' not in result.get('status_message', '') and 'Vehicle requires' not in result.get('status_message', ''):
             result['status_message'] = (
                 f"UNAUTHORIZED: Best match '{driver_name}' ({similarity:.3f})"
             )
-        else:
+        elif not result.get('status_message'):
             result['status_message'] = "UNAUTHORIZED: No confident match"
 
         # Save image for unauthorized attempts only

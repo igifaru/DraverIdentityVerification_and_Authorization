@@ -191,6 +191,11 @@ class Config:
         return self.get('system.vehicle_plate', 'UNKNOWN-PLATE')
     
     @property
+    def vehicle_category(self) -> str:
+        """Get vehicle category"""
+        return self.get('system.vehicle_category', 'B')
+    
+    @property
     def owner_name(self) -> str:
         """Get owner name"""
         return self.get('system.owner_name', 'UNKNOWN-OWNER')

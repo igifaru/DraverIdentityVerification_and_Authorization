@@ -45,6 +45,7 @@ logging:
 system:
   system_id: "DRV-AX-9000-NODE-1"  # Unique software-based identifier for this instance
   vehicle_plate: "KCB-884X"  # Registered plate number
+  vehicle_category: "C"  # The license category required to drive this vehicle
   location: "Main Cabin Entrance"  # Physical camera location label
   owner_name: "Fleet Ops - Sector 7"  # Vehicle owner/department
   admin_email: "admin@gmail.com"

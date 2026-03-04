@@ -241,6 +241,118 @@ nav.sidebar-nav {
     gap: 12px;
 }
 
+/* Notifications Dropdown */
+.notifications-wrapper {
+    position: relative;
+}
+
+#btnNotifications {
+    position: relative;
+    color: var(--text-soft);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 8px;
+    transition: color 0.15s;
+}
+
+#btnNotifications:hover {
+    color: var(--text);
+}
+
+.notification-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: var(--err);
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 10px;
+    line-height: 1;
+    border: 2px solid var(--bg-surface);
+}
+
+.notifications-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    width: 440px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    display: none;
+    flex-direction: column;
+    z-index: 100;
+}
+
+.notifications-dropdown.active {
+    display: flex;
+}
+
+.notifications-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.notifications-header h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text);
+}
+
+.mark-read-btn {
+    font-size: 0.75rem;
+    color: var(--accent);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.mark-read-btn:hover {
+    text-decoration: underline;
+}
+
+.notifications-body {
+    max-height: 480px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.notifications-body .toast-incident-card {
+    border: none;
+    border-radius: 0;
+    border-bottom: 1px solid var(--border);
+    border-left: 4px solid var(--err);
+    padding: 16px;
+    min-width: unset;
+    max-width: unset;
+    background: transparent;
+    box-shadow: none;
+    animation: none;
+}
+
+.notifications-body .toast-incident-card:last-child {
+    border-bottom: none;
+}
+
+.notifications-body .empty-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-soft);
+    font-size: 0.85rem;
+}
+
+
 
 /* System status chip */
 .sys-chip {
@@ -1034,6 +1146,19 @@ nav.sidebar-nav {
     flex-direction: column;
     gap: 10px;
     animation: toastIn 0.3s cubic-bezier(.34, 1.56, .64, 1) forwards;
+}
+
+.toast.toast-incident-card {
+    min-width: 400px;
+    max-width: 480px;
+    border-left: 1px solid rgba(220, 38, 38, 0.45);
+    padding: 20px;
+}
+
+/* Ensure the drawer elements work inside the toast */
+.toast-incident-card .detail-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
 }
 
 .toast-header {

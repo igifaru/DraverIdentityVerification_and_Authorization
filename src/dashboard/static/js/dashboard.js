@@ -635,8 +635,7 @@ async function deleteDriver(driverId, driverName) {
     }
 }
 
-// Alert polling cursor initialized to current time (unix seconds)
-let _alertCursor = Date.now() / 1000;
+let _highestSeenLogId = null;
 let _systemConfig = {
     brightness_no_signal: 8,
     brightness_low_light: 40
@@ -644,71 +643,181 @@ let _systemConfig = {
 
 async function fetchAlerts() {
     try {
-        const res = await fetch('/api/alerts?since=' + _alertCursor + '&limit=10');
+        const res = await fetch('/api/alerts?limit=10');
         const list = await res.json();
-        if (!list.length) return;
-        // Advance cursor so next poll won't repeat these events
-        _alertCursor = Math.max(...list.map(a => a.unix_ts || 0));
-        // Show a toast for each new unauthorized event
-        list.forEach(a => showToast(a));
+        if (!list || !list.length) return;
+
+        // On the very first poll, just figure out the latest ID so we don't spam old alerts
+        if (_highestSeenLogId === null) {
+            _highestSeenLogId = Math.max(...list.map(a => a.log_id || 0));
+            return;
+        }
+
+        const maxId = Math.max(...list.map(a => a.log_id || 0));
+
+        if (maxId > _highestSeenLogId) {
+            // Only grab strictly new alerts that are unauthorized (or category mismatch)
+            const newAlerts = list.filter(a => (a.log_id || 0) > _highestSeenLogId && a.authorized === false);
+
+            _highestSeenLogId = maxId;
+
+            // Reverse so they are added to the notifications in chronological order
+            newAlerts.reverse().forEach(a => addNotification(a));
+        }
     } catch (e) {
         console.error('fetchAlerts error:', e);
     }
 }
 
 
-function showToast(a) {
-    const time = new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+function renderIncidentDetails(incident) {
+    // Calculate lighting status
+    const brightness = incident.brightness || 0;
+    let lightStatus = 'Optimal';
+    let lightIcon = 'fa-sun';
+    let lightColor = 'var(--ok)';
 
-    const imgHtml = a.image_url
-        ? `<img class="toast-img" src="${a.image_url}" alt="Captured frame"
-               onerror="this.outerHTML='<div class=toast-img-placeholder><i class=fas\\ fa-user-slash></i></div>'">`
-        : `<div class="toast-img-placeholder"><i class="fas fa-user-slash"></i></div>`;
+    if (brightness < (_systemConfig?.brightness_no_signal || 10)) {
+        lightStatus = 'No Signal / Pitch Black';
+        lightIcon = 'fa-moon';
+        lightColor = 'var(--err)';
+    } else if (brightness < (_systemConfig?.brightness_low_light || 60)) {
+        lightStatus = 'Low Light Condition';
+        lightIcon = 'fa-cloud-moon';
+        lightColor = 'var(--warn)';
+    }
 
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.innerHTML = `
-        <div class="toast-header">
-            ${imgHtml}
-            <div class="toast-body" style="flex:1;">
-                <div class="toast-title">&#x26A0; Unauthorized Access Attempt</div>
-                <div class="toast-desc">
-                    <strong>${a.driver_name}</strong> was not recognized &mdash;
-                    similarity <span style="font-family:var(--font-mono);">${a.similarity.toFixed(4)}</span>
-                </div>
-                <div class="toast-time">${time}</div>
-            </div>
-            <button class="toast-close" onclick="dismissToast(this.closest('.toast'))">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div class="toast-vehicle">
-            <div class="toast-vehicle-item">
-                <span class="toast-vehicle-label">Plate</span>
-                <span class="toast-vehicle-value">${a.vehicle_plate || '—'}</span>
-            </div>
-            <div class="toast-vehicle-item">
-                <span class="toast-vehicle-label">Owner</span>
-                <span class="toast-vehicle-value">${a.owner_name || '—'}</span>
-            </div>
-            <div class="toast-vehicle-item">
-                <span class="toast-vehicle-label">Liveness</span>
-                <span class="toast-vehicle-value" style="color:${a.liveness ? 'var(--ok)' : 'var(--err)'}">
-                    ${a.liveness ? 'Pass' : 'Fail'}
-                </span>
-            </div>
+    const name = incident.authorized ? (incident.driver_name || 'Driver') : 'Unauthorized Individual';
+    const retryLabel = incident.retry_count > 0 ? `Retry Attempt #${incident.retry_count + 1}` : 'Initial Capture';
+    const statusLabel = incident.authorized ? 'AUTHORIZED ACCESS' : 'SECURITY BREACH';
+    const statusColor = incident.authorized ? 'var(--ok)' : 'var(--err)';
+
+    const imageHtml = incident.image_path ?
+        (incident.image_url ?
+            `<img src="${incident.image_url}" class="incident-large-img" alt="Primary Snapshot" onerror="this.outerHTML='<div class=incident-large-img style=\\'height:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--bg-raised); color:var(--text-muted);\\'><i class=\\'fas fa-camera-slash\\' style=\\'font-size:48px; margin-bottom:12px;\\'></i><div style=\\'font-size:12px;\\'>Image Load Error</div></div>>'">` :
+            `<img src="/api/alerts/image/${incident.log_id || incident.id}" class="incident-large-img" alt="Primary Snapshot">`
+        ) :
+        `<div class="incident-large-img" style="height:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--bg-raised); color:var(--text-muted);">
+            <i class="fas fa-camera-slash" style="font-size:48px; margin-bottom:12px;"></i>
+            <div style="font-size:12px;">No evidence image available</div>
         </div>`;
 
-    document.getElementById('toastContainer').appendChild(el);
-    // Auto-dismiss after 10 s
-    setTimeout(() => dismissToast(el), 10000);
+    return `
+        <div style="text-align:center; margin-bottom:20px;">
+            <div style="font-size:11px; font-weight:700; color:${statusColor}; letter-spacing:0.1em; margin-bottom:8px;">${statusLabel}</div>
+            ${imageHtml}
+        </div>
+
+        <div class="detail-section-title"><i class="fas fa-info-circle"></i> Biometric Analysis</div>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <div class="detail-label">Identity Match</div>
+                <div class="detail-value">${name}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Match Score</div>
+                <div class="detail-value" style="color:${incident.similarity_score > 0.75 ? 'var(--ok)' : 'var(--err)'}">
+                    ${(incident.similarity_score * 100).toFixed(2)}%
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-section-title"><i class="fas fa-microchip"></i> Hardware Context</div>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <div class="detail-label">Vehicle Node ID</div>
+                <div class="detail-value">${incident.system_id || 'UNKNOWN'}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Capture Mode</div>
+                <div class="detail-value">${retryLabel}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Camera Location</div>
+                <div class="detail-value">${incident.location || 'Entrance A'}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Environment</div>
+                <div class="detail-value" style="color:${lightColor}"><i class="fas ${lightIcon}"></i> ${lightStatus}</div>
+            </div>
+        </div>
+
+        <div class="detail-section-title"><i class="fas fa-clock"></i> Temporal Metadata</div>
+        <div style="background:var(--bg-surface); padding:16px; border-radius:var(--radius-sm);">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span style="font-size:12px; color:var(--text-soft);">Full Timestamp</span>
+                <span style="font-size:12px; font-weight:600; color:var(--text);">${new Date(incident.timestamp).toLocaleString()}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+                <span style="font-size:12px; color:var(--text-soft);">System Latency</span>
+                <span style="font-size:12px; font-weight:600; color:var(--text);">${(incident.processing_time_ms || 0).toFixed(0)}ms</span>
+            </div>
+        </div>
+    `;
 }
 
-function dismissToast(el) {
-    if (!el || el.classList.contains('out')) return;
-    el.classList.add('out');
-    el.addEventListener('animationend', () => el.remove(), { once: true });
+let _unreadAlerts = [];
+
+function toggleNotifications() {
+    const dropdown = document.getElementById('notificationsDropdown');
+    dropdown.classList.toggle('active');
+    if (dropdown.classList.contains('active')) {
+        renderNotificationsList();
+    }
 }
+
+function clearUnreadAlerts() {
+    _unreadAlerts = [];
+    updateNotificationBadge();
+    renderNotificationsList();
+    document.getElementById('notificationsDropdown').classList.remove('active');
+}
+
+function addNotification(incident) {
+    // Add to top of list
+    _unreadAlerts.unshift(incident);
+    updateNotificationBadge();
+
+    // Optionally update the list if it's currently open
+    const dropdown = document.getElementById('notificationsDropdown');
+    if (dropdown.classList.contains('active')) {
+        renderNotificationsList();
+    }
+}
+
+function updateNotificationBadge() {
+    const badge = document.getElementById('notificationBadge');
+    if (_unreadAlerts.length > 0) {
+        badge.textContent = _unreadAlerts.length;
+        badge.style.display = 'block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function renderNotificationsList() {
+    const list = document.getElementById('notificationsList');
+    if (_unreadAlerts.length === 0) {
+        list.innerHTML = '<div class="empty-state">No new alerts</div>';
+        return;
+    }
+
+    list.innerHTML = _unreadAlerts.map(incident => `
+        <div class="toast-incident-card" style="position:relative; border-bottom:1px solid var(--border); padding-bottom:15px; margin-bottom:15px;">
+            ${renderIncidentDetails(incident)}
+        </div>
+    `).join('');
+}
+
+// Global click handler to close dropdown if clicked outside
+document.addEventListener('click', (e) => {
+    const wrapper = document.getElementById('notificationsWrapper');
+    const dropdown = document.getElementById('notificationsDropdown');
+
+    if (wrapper && dropdown && !wrapper.contains(e.target) && dropdown.classList.contains('active')) {
+        dropdown.classList.remove('active');
+    }
+});
 
 
 fetchDashboard();
@@ -936,85 +1045,7 @@ function openIncidentDrawer(idx) {
 
     const content = document.getElementById('incidentDetailContent');
 
-    // Calculate lighting status
-    const brightness = incident.brightness || 0;
-    let lightStatus = 'Optimal';
-    let lightIcon = 'fa-sun';
-    let lightColor = 'var(--ok)';
-
-    if (brightness < (_systemConfig?.brightness_no_signal || 10)) {
-        lightStatus = 'No Signal / Pitch Black';
-        lightIcon = 'fa-moon';
-        lightColor = 'var(--err)';
-    } else if (brightness < (_systemConfig?.brightness_low_light || 60)) {
-        lightStatus = 'Low Light Condition';
-        lightIcon = 'fa-cloud-moon';
-        lightColor = 'var(--warn)';
-    }
-
-    const name = incident.authorized ? (incident.driver_name || 'Driver') : 'Unauthorized Individual';
-    const retryLabel = incident.retry_count > 0 ? `Retry Attempt #${incident.retry_count + 1}` : 'Initial Capture';
-    const statusLabel = incident.authorized ? 'AUTHORIZED ACCESS' : 'SECURITY BREACH';
-    const statusColor = incident.authorized ? 'var(--ok)' : 'var(--err)';
-
-    content.innerHTML = `
-        <div style="text-align:center; margin-bottom:20px;">
-            <div style="font-size:11px; font-weight:700; color:${statusColor}; letter-spacing:0.1em; margin-bottom:8px;">${statusLabel}</div>
-            ${incident.image_path ?
-            `<img src="/api/alerts/image/${incident.log_id}" class="incident-large-img" alt="Primary Snapshot">` :
-            `<div class="incident-large-img" style="height:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--bg-raised); color:var(--text-muted);">
-                    <i class="fas fa-camera-slash" style="font-size:48px; margin-bottom:12px;"></i>
-                    <div style="font-size:12px;">No evidence image available</div>
-                </div>`
-        }
-        </div>
-
-        <div class="detail-section-title"><i class="fas fa-info-circle"></i> Biometric Analysis</div>
-        <div class="detail-grid">
-            <div class="detail-item">
-                <div class="detail-label">Identity Match</div>
-                <div class="detail-value">${name}</div>
-            </div>
-            <div class="detail-item">
-                <div class="detail-label">Match Score</div>
-                <div class="detail-value" style="color:${incident.similarity_score > 0.75 ? 'var(--ok)' : 'var(--err)'}">
-                    ${(incident.similarity_score * 100).toFixed(2)}%
-                </div>
-            </div>
-        </div>
-
-        <div class="detail-section-title"><i class="fas fa-microchip"></i> Hardware Context</div>
-        <div class="detail-grid">
-            <div class="detail-item">
-                <div class="detail-label">Vehicle Node ID</div>
-                <div class="detail-value">${incident.system_id || 'UNKNOWN'}</div>
-            </div>
-             <div class="detail-item">
-                <div class="detail-label">Capture Mode</div>
-                <div class="detail-value">${retryLabel}</div>
-            </div>
-            <div class="detail-item">
-                <div class="detail-label">Camera Location</div>
-                <div class="detail-value">${incident.location || 'Entrance A'}</div>
-            </div>
-            <div class="detail-item">
-                <div class="detail-label">Environment</div>
-                <div class="detail-value" style="color:${lightColor}"><i class="fas ${lightIcon}"></i> ${lightStatus}</div>
-            </div>
-        </div>
-
-        <div class="detail-section-title"><i class="fas fa-clock"></i> Temporal Metadata</div>
-        <div style="background:var(--bg-surface); padding:16px; border-radius:var(--radius-sm);">
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                <span style="font-size:12px; color:var(--text-soft);">Full Timestamp</span>
-                <span style="font-size:12px; font-weight:600; color:var(--text);">${new Date(incident.timestamp).toLocaleString()}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between;">
-                <span style="font-size:12px; color:var(--text-soft);">System Latency</span>
-                <span style="font-size:12px; font-weight:600; color:var(--text);">${incident.processing_time_ms.toFixed(0)}ms</span>
-            </div>
-        </div>
-    `;
+    content.innerHTML = renderIncidentDetails(incident);
 
     document.getElementById('incidentDrawer').classList.add('active');
 }

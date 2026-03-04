@@ -504,7 +504,7 @@ async function fetchDrivers() {
             list.length + ' driver' + (list.length !== 1 ? 's' : '');
 
         if (!list.length) {
-            tbody.innerHTML = '<tr><td colspan="8" class="table-empty">No drivers enrolled yet.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="table-empty">No drivers enrolled yet.</td></tr>';
             return;
         }
 
@@ -517,11 +517,21 @@ async function fetchDrivers() {
                 ? `<img src="${d.photo_url}" alt="" style="width:40px;height:40px;border-radius:6px;object-fit:cover;border:1px solid var(--border-mid);"
                        onerror="this.outerHTML='<i class=fas\\ fa-user-circle style=font-size:1.6rem;color:var(--text-muted)></i>'">`
                 : `<i class="fas fa-user-circle" style="font-size:1.6rem;color:var(--text-muted)"></i>`;
+            const demoHtml = `
+                <div style="font-size:0.8rem;">${d.dob ? new Date(d.dob).toLocaleDateString() : 'N/A'}</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">${d.gender || '—'}</div>
+            `;
+            const expiryHtml = `
+                <div style="font-size:0.8rem;${d.expiry_date && new Date(d.expiry_date) < new Date() ? 'color:var(--err);font-weight:600;' : ''}">${d.expiry_date ? new Date(d.expiry_date).toLocaleDateString() : 'N/A'}</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">${d.issue_place || '—'}</div>
+            `;
             return `<tr>
                 <td style="color:var(--text-muted);font-family:var(--font-mono);font-size:0.78rem;">${i + 1}</td>
                 <td>${photoHtml}</td>
                 <td style="font-weight:600;">${d.name}</td>
                 <td style="font-family:var(--font-mono);font-size:0.82rem;">${d.license_number || '—'}</td>
+                <td>${demoHtml}</td>
+                <td>${expiryHtml}</td>
                 <td>${d.categories_display || d.category || '—'}</td>
                 <td style="color:var(--text-muted);font-size:0.82rem;">${enrolled}</td>
                 <td><span class="badge ${statusCls}" style="text-transform:capitalize;">${d.status}</span></td>
@@ -539,7 +549,7 @@ async function fetchDrivers() {
         }).join('');
     } catch (e) {
         document.getElementById('driversTbody').innerHTML =
-            '<tr><td colspan="8" class="table-empty">Failed to load drivers.</td></tr>';
+            '<tr><td colspan="10" class="table-empty">Failed to load drivers.</td></tr>';
         console.error('fetchDrivers error:', e);
     }
 }
@@ -548,6 +558,10 @@ function openEditModal(driver) {
     document.getElementById('editDriverId').value = driver.driver_id;
     document.getElementById('editName').value = driver.name;
     document.getElementById('editLicense').value = driver.license_number || '';
+    document.getElementById('editDOB').value = driver.dob || '';
+    document.getElementById('editGender').value = driver.gender || '';
+    document.getElementById('editExpiry').value = driver.expiry_date || '';
+    document.getElementById('editIssuePlace').value = driver.issue_place || '';
     document.getElementById('editStatus').value = driver.status || 'active';
     // Tick the right category boxes
     const cats = Array.isArray(driver.categories)
@@ -575,6 +589,10 @@ async function saveDriverEdit() {
     const id = document.getElementById('editDriverId').value;
     const name = document.getElementById('editName').value.trim();
     const license = document.getElementById('editLicense').value.trim();
+    const dob = document.getElementById('editDOB').value.trim();
+    const gender = document.getElementById('editGender').value.trim();
+    const expiry_date = document.getElementById('editExpiry').value.trim();
+    const issue_place = document.getElementById('editIssuePlace').value.trim();
     const status = document.getElementById('editStatus').value;
     const categories = [...document.querySelectorAll('#editCatGroup input[name="editCat"]:checked')]
         .map(cb => cb.value);
@@ -586,7 +604,9 @@ async function saveDriverEdit() {
         const res = await fetch('/api/drivers/' + id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, license_number: license, categories, status }),
+            body: JSON.stringify({
+                name, license_number: license, dob, gender, expiry_date, issue_place, categories, status
+            }),
         });
         const data = await res.json();
         if (data.success) {

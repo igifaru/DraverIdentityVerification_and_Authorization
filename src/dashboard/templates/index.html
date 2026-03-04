@@ -191,6 +191,8 @@
                                 <th>Photo</th>
                                 <th>Name</th>
                                 <th>Licence</th>
+                                <th>Demographics</th>
+                                <th>Expiry / Issue</th>
                                 <th>Categories</th>
                                 <th>Enrolled</th>
                                 <th>Status</th>
@@ -199,7 +201,7 @@
                         </thead>
                         <tbody id="driversTbody">
                             <tr>
-                                <td colspan="7" class="table-empty">Loading…</td>
+                                <td colspan="9" class="table-empty">Loading…</td>
                             </tr>
                         </tbody>
                     </table>
@@ -590,8 +592,35 @@
             <input type="text" class="text-input" id="editName" placeholder="Full Legal Name">
 
             <div class="field-label">Licence Number</div>
-            <input type="text" class="text-input" id="editLicense" placeholder="Licence number">
+            <input type="number" class="text-input" id="editLicense" placeholder="Licence number" pattern="[0-9]*"
+                title="Only integer numbers are allowed">
 
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px;">
+                <div>
+                    <div class="field-label">Date of Birth</div>
+                    <input type="date" class="text-input" id="editDOB">
+                </div>
+                <div>
+                    <div class="field-label">Gender</div>
+                    <select class="text-input" id="editGender">
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; margin-bottom: 8px;">
+                <div>
+                    <div class="field-label">License Expiry Date</div>
+                    <input type="date" class="text-input" id="editExpiry">
+                </div>
+                <div>
+                    <div class="field-label">Place of Issue</div>
+                    <input type="text" class="text-input" id="editIssuePlace" placeholder="e.g. London">
+                </div>
+            </div>
             <div class="field-label mt">Categories</div>
             <div class="cat-group" id="editCatGroup">
                 <label class="cat-item"><input type="checkbox" name="editCat" value="A"><span

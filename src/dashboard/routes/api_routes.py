@@ -273,6 +273,13 @@ def update_driver(driver_id: int):
     new_name = data.get('name', '').strip()
     new_license = data.get('license_number', '').strip()
     new_status  = data.get('status', '').strip().lower()
+    new_dob = data.get('dob', '').strip()
+    new_gender = data.get('gender', '').strip()
+    new_expiry_date = data.get('expiry_date', '').strip()
+    new_issue_place = data.get('issue_place', '').strip()
+
+    if new_license and not new_license.isdigit():
+        return jsonify({'error': 'Driving license number must contain only numbers'}), 400
 
     try:
         new_categories = _parse_categories(data) if ('categories' in data or 'category' in data) else None
@@ -289,6 +296,14 @@ def update_driver(driver_id: int):
         parts.append('category = %s'); params.append(cat_str)
     if new_status in ('active', 'inactive'):
         parts.append('status = %s'); params.append(new_status)
+    if new_dob:
+        parts.append('dob = %s'); params.append(new_dob)
+    if new_gender:
+        parts.append('gender = %s'); params.append(new_gender)
+    if new_expiry_date:
+        parts.append('expiry_date = %s'); params.append(new_expiry_date)
+    if new_issue_place:
+        parts.append('issue_place = %s'); params.append(new_issue_place)
 
     if not parts: return jsonify({'error': 'No fields to update'}), 400
 

@@ -169,14 +169,34 @@ class VerificationEngine:
         is_authorized, driver_id, driver_name, similarity = \
             self.face_matcher.verify_identity(embedding)
 
-        # ---- Step 5: Category check ----
+        # ---- Step 5: License Expiry and Category check ----
         if is_authorized and driver_id is not None:
             driver_record = self.db.get_driver(driver_id)
             if driver_record:
-                req_category = config.vehicle_category.strip().upper()
-                if req_category not in driver_record.categories:
-                    is_authorized = False
-                    result['status_message'] = f"UNAUTHORIZED: Vehicle requires '{req_category}', driver has [{driver_record.categories_display}]"
+                from datetime import date, datetime
+                # 5a. License Expiry Check
+                if driver_record.expiry_date:
+                    exp_date = None
+                    if isinstance(driver_record.expiry_date, datetime):
+                        exp_date = driver_record.expiry_date.date()
+                    elif isinstance(driver_record.expiry_date, date):
+                        exp_date = driver_record.expiry_date
+                    elif isinstance(driver_record.expiry_date, str):
+                        try:
+                            exp_date = datetime.strptime(driver_record.expiry_date, "%Y-%m-%d").date()
+                        except ValueError:
+                            pass
+                    
+                    if exp_date and exp_date < date.today():
+                        is_authorized = False
+                        result['status_message'] = f"UNAUTHORIZED: License expired on {exp_date.strftime('%Y-%m-%d')}"
+
+                # 5b. Category check
+                if is_authorized:
+                    req_category = config.vehicle_category.strip().upper()
+                    if req_category not in driver_record.categories:
+                        is_authorized = False
+                        result['status_message'] = f"UNAUTHORIZED: Vehicle requires '{req_category}', driver has [{driver_record.categories_display}]"
 
         result['authorized']       = is_authorized
         result['driver_id']        = driver_id
@@ -186,7 +206,7 @@ class VerificationEngine:
 
         if is_authorized:
             result['status_message'] = f"AUTHORIZED: {driver_name} ({similarity:.3f})"
-        elif driver_id and 'Category mismatch' not in result.get('status_message', '') and 'Vehicle requires' not in result.get('status_message', ''):
+        elif driver_id and not result.get('status_message'):
             result['status_message'] = (
                 f"UNAUTHORIZED: Best match '{driver_name}' ({similarity:.3f})"
             )

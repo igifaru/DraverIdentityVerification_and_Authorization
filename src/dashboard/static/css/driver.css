@@ -85,13 +85,76 @@ body[data-state="unauthorized"] .guide-layer {
     height: 100%;
 }
 
-/* Oval ring animation: normal = static blue/purple, detecting = pulse */
-#guideOval {
-    transition: stroke 0.4s;
+/* ARMED / Waiting for movement state */
+.movement-wait-content {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    z-index: 200;
 }
 
-body[data-state="detecting"] #guideOval {
-    animation: ovalPulse 0.7s ease-in-out infinite alternate;
+body[data-state="waiting_movement"] .movement-wait-content {
+    display: flex;
+}
+
+body[data-state="waiting_movement"] .guide-svg,
+body[data-state="waiting_movement"] .sweep,
+body[data-state="waiting_movement"] .bracket,
+body[data-state="waiting_movement"] .guide-hint {
+    display: none;
+}
+
+.radar-pulse {
+    width: 80px;
+    height: 80px;
+    border: 2px solid var(--blue);
+    border-radius: 50%;
+    position: relative;
+    animation: radarPulse 2s infinite;
+}
+
+.radar-pulse::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border: 2px solid var(--blue);
+    border-radius: 50%;
+    opacity: 0.5;
+    animation: radarPulse 2s infinite 0.5s;
+}
+
+@keyframes radarPulse {
+    0% {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+.wait-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    letter-spacing: 5px;
+    color: var(--blue);
+    text-shadow: 0 0 10px rgba(76, 201, 240, 0.5);
+    font-weight: 700;
+}
+
+.wait-sub {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.7rem;
+    color: var(--dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
 }
 
 @keyframes ovalPulse {
@@ -620,7 +683,51 @@ body[data-state="unauthorized"] .edge {
 .hud-right {
     display: flex;
     align-items: center;
+    gap: 16px;
+}
+
+.gps-status {
+    display: flex;
+    align-items: center;
     gap: 8px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 2px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gps-status i {
+    font-size: 0.7rem;
+    color: var(--blue);
+}
+
+.gps-status.moving {
+    color: var(--green);
+    border-color: rgba(46, 204, 113, 0.3);
+    background: rgba(46, 204, 113, 0.05);
+}
+
+.gps-status.moving i {
+    color: var(--green);
+    animation: locationPulse 1s ease-in-out infinite;
+}
+
+@keyframes locationPulse {
+
+    0%,
+    100% {
+        opacity: 0.5;
+        transform: scale(0.9);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
 }
 
 .state-led {

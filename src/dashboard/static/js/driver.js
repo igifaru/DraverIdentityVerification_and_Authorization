@@ -20,12 +20,14 @@
 (function () {
     'use strict';
 
-    /* ── Timing constants ─────────────────────────────────────────── */
+    /* ── Timing & GPS constants ───────────────────────────────────── */
     const DETECT_POLL_MS = 800;    // idle poll interval
     const STABLE_MS = 2000;   // face must be present this long before verify
     const AUTH_HOLD_MS = 3000;   // green result shown for
     const DENY_HOLD_MS = 5000;   // red result shown for
     const CLOCK_MS = 1000;   // clock refresh
+    const GPS_THRESHOLD_M = 6;    // distance in meters to trigger verification
+    const GPS_MIN_ACCURACY = 50;  // maximum acceptable accuracy in meters
 
     /* ── DOM refs ─────────────────────────────────────────────────── */
     const body = document.body;
@@ -37,6 +39,8 @@
     const stateLed = document.getElementById('stateLed');
     const stateWord = document.getElementById('stateWord');
     const clockEl = document.getElementById('clockEl');
+    const gpsStatus = document.getElementById('gpsStatus');
+    const gpsLabel = document.getElementById('gpsLabel');
 
     /* ── State ────────────────────────────────────────────────────── */
     let state = 'idle';
@@ -46,12 +50,15 @@
     let checkStableTimer = null;
     let verifying = false;
     let isStartingCamera = false; // Lock to prevent multiple concurrent start requests
+    let prevPosition = null;      // Last recorded GPS position {lat, lon}
+    let gpsWatchId = null;
 
     /* ── Helpers ──────────────────────────────────────────────────── */
     function setState(s) {
         state = s;
         body.dataset.state = s;
         const labels = {
+            waiting_movement: 'WAITING FOR MOVEMENT',
             idle: 'SCANNING',
             detecting: 'FACE DETECTED',
             processing: 'VERIFYING',
@@ -60,6 +67,85 @@
         };
         stateWord.textContent = labels[s] || s.toUpperCase();
     }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+        const R = 6371000; // Earth radius in meters
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
+    /* ── GPS Management ─────────────────────────────────────────── */
+    function initGPS() {
+        if (!navigator.geolocation) {
+            gpsLabel.textContent = 'GPS NOT SUPPORTED';
+            gpsStatus.style.color = 'var(--red)';
+            return;
+        }
+
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        };
+
+        gpsWatchId = navigator.geolocation.watchPosition((pos) => {
+            const { latitude, longitude, accuracy } = pos.coords;
+            console.log(`[GPS] Lat: ${latitude}, Lon: ${longitude}, Acc: ${accuracy}m`);
+
+            if (accuracy > GPS_MIN_ACCURACY) {
+                gpsLabel.textContent = `GPS ACCURACY LOW (${Math.round(accuracy)}m)`;
+                gpsStatus.classList.remove('moving');
+                return;
+            }
+
+            if (!prevPosition) {
+                prevPosition = { lat: latitude, lon: longitude };
+                gpsLabel.textContent = 'VEHICLE STATIONARY';
+                gpsStatus.classList.remove('moving');
+                return;
+            }
+
+            const distance = haversine(prevPosition.lat, prevPosition.lon, latitude, longitude);
+            console.log(`[GPS] Distance: ${distance.toFixed(2)}m`);
+
+            if (distance >= GPS_THRESHOLD_M) {
+                console.log(`[GPS] Movement detected: ${distance.toFixed(2)}m. Triggering verification...`);
+                gpsLabel.textContent = `MOVING: ${distance.toFixed(1)}m`;
+                gpsStatus.classList.add('moving');
+
+                // Trigger face verification if we're not already in a process
+                if (state === 'waiting_movement' || state === 'idle') {
+                    startIdle(); // This will start the face detection poll
+                }
+
+                // Update previous position only after hitting the threshold as per diagram logic 
+                // "The system should run continuously, updating the previous coordinate after each calculation"
+                prevPosition = { lat: latitude, lon: longitude };
+
+                // Reset to "STATIONARY" label after a short delay if movement stops being detected
+                setTimeout(() => {
+                    if (state === 'idle' || state === 'waiting_movement') {
+                        gpsLabel.textContent = 'VEHICLE STATIONARY';
+                        gpsStatus.classList.remove('moving');
+                    }
+                }, 5000);
+            } else {
+                gpsLabel.textContent = 'VEHICLE STATIONARY';
+                gpsStatus.classList.remove('moving');
+            }
+
+        }, (err) => {
+            console.warn('[GPS] error:', err.message);
+            gpsLabel.textContent = 'GPS SIGNAL LOST';
+            gpsStatus.style.color = 'var(--red)';
+        }, options);
+    }
+
 
     function clearReset() {
         if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
@@ -101,8 +187,24 @@
         countBar.style.width = '100%';
     }
 
+    /* ── Movement Wait: Initial state ──────────────────────────── */
+    function startMovementWait() {
+        if (state === 'waiting_movement') return;
+        setState('waiting_movement');
+        verifying = false;
+        stopPoll();
+        clearStable();
+        clearReset();
+
+        // Stop camera if it was on
+        fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
+
+        console.log('[driver] System armed: Waiting for vehicle movement...');
+    }
+
     /* ── IDLE: poll for a face ──────────────────────────────────── */
     async function startIdle() {
+        if (state === 'idle') return;
         setState('idle');
         verifying = false;
         stopPoll();
@@ -113,7 +215,6 @@
             if (state !== 'idle' || pollTimer === null) return;
 
             // STRICT CHECK: Only poll if the tab is visible AND the window has focus.
-            // This prevents background tabs or tabs in unfocused windows from starting the camera.
             const isVisible = document.visibilityState === 'visible';
             const isFocused = document.hasFocus();
 
@@ -126,28 +227,25 @@
                 const res = await fetch('/api/driver/detect');
                 const data = await res.json();
 
-                // If the backend says camera is OFF, and we are visible/focused, wake it up!
+                // If the backend says camera is OFF, wake it up!
                 if (data.camera_off) {
                     if (!isStartingCamera) {
                         isStartingCamera = true;
-                        console.log('[driver] Camera is OFF, requesting start...');
+                        console.log('[driver] Activating camera after movement...');
                         try {
                             const startRes = await fetch('/api/driver/camera/start', { method: 'POST' });
                             const startData = await startRes.json();
-                            if (!startData.success) {
-                                console.error('[driver] Failed to start camera backend.');
-                            }
                         } finally {
                             isStartingCamera = false;
                         }
                     }
-                    pollTimer = setTimeout(poll, 1500); // Wait longer if starting
+                    pollTimer = setTimeout(poll, 1500);
                     return;
                 }
 
                 if (data.face_present) {
                     onFaceDetected();
-                    return; // onFaceDetected handles next state
+                    return;
                 }
             } catch (e) {
                 console.warn('[driver] detect error:', e.message);
@@ -165,7 +263,6 @@
         stopPoll();
         animateCountdown(STABLE_MS);
 
-        // Keep checking — if face disappears, abort
         let lostCount = 0;
         checkStableTimer = setInterval(async () => {
             try {
@@ -173,18 +270,17 @@
                 const data = await res.json();
                 if (!data.face_present) {
                     lostCount++;
-                    if (lostCount >= 2) {          // 2 misses in a row = lost
+                    if (lostCount >= 2) {
                         clearStable();
-                        startIdle();               // back to idle
+                        startIdle();
                         return;
                     }
                 } else {
                     lostCount = 0;
                 }
-            } catch (e) { /* ignore */ }
+            } catch (e) { }
         }, 400);
 
-        // After STABLE_MS → fire full verification
         stableTimer = setTimeout(() => {
             clearStable();
             startVerification();
@@ -207,11 +303,9 @@
             } else if (data.state === 'unauthorized') {
                 showUnauthorized(data);
             } else {
-                // no_face — face disappeared during embedding
                 startIdle();
             }
         } catch (e) {
-            console.error('[driver] verify error:', e);
             startIdle();
         }
     }
@@ -219,31 +313,30 @@
     /* ── AUTHORIZED result ──────────────────────────────────────── */
     function showAuthorized(data) {
         setState('authorized');
-        driverName.textContent = data.driver_name
-            ? `Welcome, ${data.driver_name}`
-            : 'Driver Identified';
-        authMeta.textContent = data.similarity
-            ? `Match confidence: ${(data.similarity * 100).toFixed(1)}%`
-            : '';
+        driverName.textContent = data.driver_name ? `Welcome, ${data.driver_name}` : 'Driver Identified';
+        authMeta.textContent = data.similarity ? `Match confidence: ${(data.similarity * 100).toFixed(1)}%` : '';
 
         animateTimer(authTimer, AUTH_HOLD_MS);
-        resetTimer = setTimeout(startIdle, AUTH_HOLD_MS);
+        resetTimer = setTimeout(startMovementWait, AUTH_HOLD_MS); // Go back to waiting for next movement
     }
 
     /* ── UNAUTHORIZED result ────────────────────────────────────── */
     function showUnauthorized(data) {
         setState('unauthorized');
         animateTimer(deniedTimer, DENY_HOLD_MS);
-        resetTimer = setTimeout(startIdle, DENY_HOLD_MS);
+        resetTimer = setTimeout(startMovementWait, DENY_HOLD_MS); // Go back to waiting for next movement
     }
 
     /* ── Boot ───────────────────────────────────────────────────── */
     function checkAndStart() {
         if (document.visibilityState === 'visible' && document.hasFocus()) {
-            console.log('[driver] Tab is visible and focused. Starting polling.');
-            startIdle();
+            if (gpsWatchId === null) {
+                initGPS();
+            }
+            if (state === 'idle' || state === 'waiting_movement' || body.dataset.state === 'idle') {
+                startMovementWait();
+            }
         } else {
-            console.log('[driver] Tab is backgrounded or unfocused. Polling suspended.');
             stopPoll();
             clearStable();
         }
@@ -252,21 +345,8 @@
     // Run once on load
     checkAndStart();
 
-    // Visibility awareness: Tab switching
-    document.addEventListener('visibilitychange', () => {
-        console.log('[driver] Visibility changed:', document.visibilityState);
-        checkAndStart();
-    });
-
-    // Focus awareness: Window switching
-    window.addEventListener('focus', () => {
-        console.log('[driver] Window focused.');
-        checkAndStart();
-    });
-
-    window.addEventListener('blur', () => {
-        console.log('[driver] Window blurred.');
-        checkAndStart();
-    });
+    document.addEventListener('visibilitychange', checkAndStart);
+    window.addEventListener('focus', checkAndStart);
+    window.addEventListener('blur', checkAndStart);
 
 }());

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * driver.js — Driver Verification Terminal
  *
  * State machine:
@@ -111,23 +111,19 @@
             }
 
             const distance = haversine(prevPosition.lat, prevPosition.lon, latitude, longitude);
-            console.log(`[GPS] Distance: ${distance.toFixed(2)}m`);
+            console.log(`[GPS] Distance from anchor: ${distance.toFixed(2)}m (Threshold: ${GPS_THRESHOLD_M}m)`);
 
             if (distance >= GPS_THRESHOLD_M) {
-                console.log(`[GPS] Movement detected: ${distance.toFixed(2)}m. Triggering verification...`);
+                console.log(`[GPS] Movement threshold reached: ${distance.toFixed(2)}m. Triggering verification...`);
                 gpsLabel.textContent = `MOVING: ${distance.toFixed(1)}m`;
                 gpsStatus.classList.add('moving');
-
-                // Trigger face verification if we're not already in a process
-                if (state === 'waiting_movement' || state === 'idle') {
-                    startIdle(); // This will start the face detection poll
-                }
-
-                // Update previous position only after hitting the threshold as per diagram logic 
-                // "The system should run continuously, updating the previous coordinate after each calculation"
+                
                 prevPosition = { lat: latitude, lon: longitude };
 
-                // Reset to "STATIONARY" label after a short delay if movement stops being detected
+                if (state === 'waiting_movement') {
+                    startIdle(); 
+                }
+
                 setTimeout(() => {
                     if (state === 'idle' || state === 'waiting_movement') {
                         gpsLabel.textContent = 'VEHICLE STATIONARY';
@@ -135,9 +131,10 @@
                     }
                 }, 5000);
             } else {
-                gpsLabel.textContent = 'VEHICLE STATIONARY';
+                gpsLabel.textContent = `STATIONARY (${distance.toFixed(1)}m)`;
                 gpsStatus.classList.remove('moving');
             }
+
 
         }, (err) => {
             console.warn('[GPS] error:', err.message);
@@ -196,8 +193,8 @@
         clearStable();
         clearReset();
 
-        // Stop camera if it was on
-        fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
+        // Stop camera if it was on (using public endpoint)
+        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
 
         console.log('[driver] System armed: Waiting for vehicle movement...');
     }
@@ -214,11 +211,8 @@
         async function poll() {
             if (state !== 'idle' || pollTimer === null) return;
 
-            // STRICT CHECK: Only poll if the tab is visible AND the window has focus.
-            const isVisible = document.visibilityState === 'visible';
-            const isFocused = document.hasFocus();
-
-            if (!isVisible || !isFocused) {
+            // KIOSK MODE: Only check visibility, ignore focus as drivers don't click terminals.
+            if (document.visibilityState !== 'visible') {
                 pollTimer = setTimeout(poll, DETECT_POLL_MS);
                 return;
             }
@@ -289,7 +283,7 @@
 
     /* ── PROCESSING: call /api/driver/verify ───────────────────── */
     async function startVerification() {
-        if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
+        if (document.visibilityState !== 'visible') return;
         if (verifying) return;
         verifying = true;
         setState('processing');
@@ -329,14 +323,16 @@
 
     /* ── Boot ───────────────────────────────────────────────────── */
     function checkAndStart() {
-        if (document.visibilityState === 'visible' && document.hasFocus()) {
+        if (document.visibilityState === 'visible') {
             if (gpsWatchId === null) {
                 initGPS();
             }
-            if (state === 'idle' || state === 'waiting_movement' || body.dataset.state === 'idle') {
+            // Only force arm if we were completely off or explicitly idle
+            if (state === 'idle' || body.dataset.state === 'idle') {
                 startMovementWait();
             }
         } else {
+            // Backgrounded: just pause the polling loop
             stopPoll();
             clearStable();
         }

@@ -431,3 +431,14 @@ def start_camera_public():
         success = engine.start_camera()
         return jsonify({'success': success})
     return jsonify({'success': True})
+
+
+@api_bp.route('/driver/camera/stop', methods=['POST'])
+def stop_camera_public():
+    """Explicitly stop the camera from the driver terminal (public)."""
+    engine = _get_engine()
+    if engine.video_stream.is_running:
+        engine.video_stream.stop()
+        return jsonify({'success': True})
+    return jsonify({'success': True})
+

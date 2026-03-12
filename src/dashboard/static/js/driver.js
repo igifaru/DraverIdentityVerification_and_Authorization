@@ -43,7 +43,7 @@
     const gpsLabel = document.getElementById('gpsLabel');
 
     /* ── State ────────────────────────────────────────────────────── */
-    let state = 'idle';
+    let state = 'boot';
     let pollTimer = null;
     let stableTimer = null;
     let resetTimer = null;
@@ -75,7 +75,7 @@
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
         return R * c;
     }
 
@@ -95,8 +95,6 @@
 
         gpsWatchId = navigator.geolocation.watchPosition((pos) => {
             const { latitude, longitude, accuracy } = pos.coords;
-            console.log(`[GPS] Lat: ${latitude}, Lon: ${longitude}, Acc: ${accuracy}m`);
-
             if (accuracy > GPS_MIN_ACCURACY) {
                 gpsLabel.textContent = `GPS ACCURACY LOW (${Math.round(accuracy)}m)`;
                 gpsStatus.classList.remove('moving');
@@ -111,10 +109,8 @@
             }
 
             const distance = haversine(prevPosition.lat, prevPosition.lon, latitude, longitude);
-            console.log(`[GPS] Distance from anchor: ${distance.toFixed(2)}m (Threshold: ${GPS_THRESHOLD_M}m)`);
 
             if (distance >= GPS_THRESHOLD_M) {
-                console.log(`[GPS] Movement threshold reached: ${distance.toFixed(2)}m. Triggering verification...`);
                 gpsLabel.textContent = `MOVING: ${distance.toFixed(1)}m`;
                 gpsStatus.classList.add('moving');
                 
@@ -137,7 +133,6 @@
 
 
         }, (err) => {
-            console.warn('[GPS] error:', err.message);
             gpsLabel.textContent = 'GPS SIGNAL LOST';
             gpsStatus.style.color = 'var(--red)';
         }, options);
@@ -195,8 +190,6 @@
 
         // Stop camera if it was on (using public endpoint)
         fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
-
-        console.log('[driver] System armed: Waiting for vehicle movement...');
     }
 
     /* ── IDLE: poll for a face ──────────────────────────────────── */
@@ -225,7 +218,6 @@
                 if (data.camera_off) {
                     if (!isStartingCamera) {
                         isStartingCamera = true;
-                        console.log('[driver] Activating camera after movement...');
                         try {
                             const startRes = await fetch('/api/driver/camera/start', { method: 'POST' });
                             const startData = await startRes.json();
@@ -242,7 +234,6 @@
                     return;
                 }
             } catch (e) {
-                console.warn('[driver] detect error:', e.message);
             }
             pollTimer = setTimeout(poll, DETECT_POLL_MS);
         }
@@ -327,12 +318,11 @@
             if (gpsWatchId === null) {
                 initGPS();
             }
-            // Only force arm if we were completely off or explicitly idle
-            if (state === 'idle' || body.dataset.state === 'idle') {
+            // Only force arm if we are in the initial boot state
+            if (state === 'boot') {
                 startMovementWait();
             }
         } else {
-            // Backgrounded: just pause the polling loop
             stopPoll();
             clearStable();
         }

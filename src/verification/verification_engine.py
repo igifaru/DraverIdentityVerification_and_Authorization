@@ -63,6 +63,7 @@ class VerificationEngine:
         # Web streaming support
         self._frame_lock = threading.Lock()
         self.latest_frame = None
+        self.raw_frame = None # Raw frame for API consumption
         self.latest_result = None  # Store last verification result
         
         self.email_service = EmailService()
@@ -302,7 +303,7 @@ class VerificationEngine:
                             print("[engine] System idle. Monitoring for activation...")
                             self._last_standby_log = time.time()
                             
-                        time.sleep(1.0)
+                        time.sleep(0.5)
                         continue
                     
                     if not getattr(self, '_was_active', False):
@@ -321,8 +322,13 @@ class VerificationEngine:
                     if frame is None:
                         time.sleep(0.01 if not self.enable_cooldown else 0.1)
                         continue
-                    
+
                     frame_count += 1
+                    
+                    # Preserve raw frame for API calls before any drawing happens
+                    with self._frame_lock:
+                        self.raw_frame = frame.copy()
+                        
                     display_frame = frame.copy()
                     
                     # Check if enough time has passed since last verification
@@ -379,17 +385,11 @@ class VerificationEngine:
 
                         # Draw result on frame
                         display_frame = self.result_handler.draw_result(display_frame, result)
-
-
-                    else:
-                        # Show cooldown status
-                        remaining = self.verification_cooldown - (current_time - self.last_verification_time)
-                        cv2.putText(display_frame, f"Cooldown: {remaining:.1f}s", (10, 30),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
                     
                     # Update latest frame and result for web streaming
                     with self._frame_lock:
                         self.latest_frame = display_frame.copy()
+                        # Always update latest_frame even if no verification happened
                         if can_verify:
                             result['result_timestamp'] = time.time()   # lets the dashboard detect new events
                             self.latest_result = result.copy()
@@ -423,6 +423,13 @@ class VerificationEngine:
                 image_path=result['image_path']
             )
             result['email_sent'] = success
+
+    def get_latest_raw_frame(self) -> Optional[np.ndarray]:
+        """Return the most recent raw frame from the stream (thread-safe)."""
+        with self._frame_lock:
+            if self.raw_frame is not None:
+                return self.raw_frame.copy()
+            return None
 
     def stop(self):
         """Stop verification engine"""

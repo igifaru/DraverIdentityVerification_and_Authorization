@@ -73,9 +73,9 @@ def _decode_images(images_data: list) -> List[np.ndarray]:
             if img is not None:
                 decoded.append(img)
             else:
-                print(f"  [enroll] Sample {idx + 1} produced None skipping")
-        except Exception as exc:
-            print(f"  [enroll] Sample {idx + 1} decode error: {exc}")
+                pass
+        except Exception:
+            pass
     return decoded
 
 
@@ -94,7 +94,8 @@ def driver_detect():
     if not engine.video_stream.is_running:
         return jsonify({'face_present': False, 'confidence': 0.0, 'camera_off': True})
 
-    frame = engine.video_stream.read_frame()
+    # Use buffered frame from background thread to avoid contention
+    frame = engine.get_latest_raw_frame()
     if frame is None:
         return jsonify({'face_present': False, 'confidence': 0.0})
 
@@ -115,9 +116,10 @@ def driver_verify():
     engine.record_camera_activity(label='driver_verify')
     if not engine.video_stream.is_running:
         engine.start_camera()
-        time.sleep(0.5)
+        time.sleep(0.8)
 
-    frame = engine.video_stream.read_frame()
+    # Grabbing from buffer to avoid thread contention
+    frame = engine.get_latest_raw_frame()
     if frame is None:
         return jsonify({'state': 'no_face', 'driver_name': None, 'similarity': 0.0, 'event_id': None})
 
@@ -335,9 +337,12 @@ def enroll_capture_live():
         engine.start_camera()
         time.sleep(3.0)
 
-    for attempt in range(8):
-        frame = engine.video_stream.read_frame()
+    for attempt in range(12):
+        # Prefer the raw buffer from the background consumer
+        frame = engine.get_latest_raw_frame()
+        
         if frame is None:
+            # Fallback to display frame if raw is missing (unlikely but safe)
             with engine._frame_lock:
                 frame = engine.latest_frame.copy() if engine.latest_frame is not None else None
         

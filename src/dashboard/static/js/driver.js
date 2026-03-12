@@ -26,7 +26,8 @@
     const AUTH_HOLD_MS = 3000;   // green result shown for
     const DENY_HOLD_MS = 5000;   // red result shown for
     const CLOCK_MS = 1000;   // clock refresh
-    const GPS_THRESHOLD_M = 6;    // distance in meters to trigger verification
+    const GPS_THRESHOLD_M = 6;    // Trip start trigger
+    const REVERIFY_THRESHOLD_M = 5000; // 5km periodic trigger
     const GPS_MIN_ACCURACY = 50;  // maximum acceptable accuracy in meters
 
     /* ── DOM refs ─────────────────────────────────────────────────── */
@@ -50,7 +51,9 @@
     let checkStableTimer = null;
     let verifying = false;
     let isStartingCamera = false; // Lock to prevent multiple concurrent start requests
-    let prevPosition = null;      // Last recorded GPS position {lat, lon}
+    let prevPosition = null;      // Anchor for "Stationary" vs "Moving" HUD logic
+    let lastAuthPosition = null;  // Anchor for the 5km periodic check
+    let latestCoords = null;      // Cached latest high-accuracy coordinates
     let gpsWatchId = null;
 
     /* ── Helpers ──────────────────────────────────────────────────── */
@@ -59,6 +62,7 @@
         body.dataset.state = s;
         const labels = {
             waiting_movement: 'WAITING FOR MOVEMENT',
+            driving: 'TRIP IN PROGRESS',
             idle: 'SCANNING',
             detecting: 'FACE DETECTED',
             processing: 'VERIFYING',
@@ -101,36 +105,49 @@
                 return;
             }
 
+            // Cache for use in showAuthorized
+            latestCoords = { lat: latitude, lon: longitude };
+
             if (!prevPosition) {
                 prevPosition = { lat: latitude, lon: longitude };
                 gpsLabel.textContent = 'VEHICLE STATIONARY';
-                gpsStatus.classList.remove('moving');
                 return;
             }
 
-            const distance = haversine(prevPosition.lat, prevPosition.lon, latitude, longitude);
+            const distFromAnchor = haversine(prevPosition.lat, prevPosition.lon, latitude, longitude);
 
-            if (distance >= GPS_THRESHOLD_M) {
-                gpsLabel.textContent = `MOVING: ${distance.toFixed(1)}m`;
-                gpsStatus.classList.add('moving');
-                
-                prevPosition = { lat: latitude, lon: longitude };
-
-                if (state === 'waiting_movement') {
+            // ─── LOGIC A: TRIP START (6m) ───
+            if (state === 'waiting_movement') {
+                // To avoid signal jump triggers, movement must be > threshold AND accuracy must be decent
+                if (distFromAnchor >= GPS_THRESHOLD_M && accuracy < 20) {
+                    gpsLabel.textContent = `TRIP START: ${distFromAnchor.toFixed(1)}m`;
+                    gpsStatus.classList.add('moving');
                     startIdle(); 
-                }
-
-                setTimeout(() => {
-                    if (state === 'idle' || state === 'waiting_movement') {
-                        gpsLabel.textContent = 'VEHICLE STATIONARY';
-                        gpsStatus.classList.remove('moving');
+                } else {
+                    gpsLabel.textContent = `STATIONARY (${distFromAnchor.toFixed(1)}m)`;
+                    // If we've drifted significantly (3x threshold) without a trigger, 
+                    // it's likely signal noise. Re-anchor to current spot.
+                    if (distFromAnchor > (GPS_THRESHOLD_M * 3)) {
+                        prevPosition = { lat: latitude, lon: longitude };
                     }
-                }, 5000);
-            } else {
-                gpsLabel.textContent = `STATIONARY (${distance.toFixed(1)}m)`;
-                gpsStatus.classList.remove('moving');
+                }
             }
 
+            // ─── LOGIC B: EN-ROUTE RE-VERIFY (5km) ───
+            else if (state === 'driving' && lastAuthPosition) {
+                const distSinceAuth = haversine(lastAuthPosition.lat, lastAuthPosition.lon, latitude, longitude);
+                const km = (distSinceAuth / 1000).toFixed(2);
+                
+                if (distSinceAuth >= REVERIFY_THRESHOLD_M) {
+                    gpsLabel.textContent = `RE-VERIFYING (${km}km)`;
+                    gpsStatus.classList.add('moving');
+                    startIdle(); 
+                } else {
+                    const remaining = ((REVERIFY_THRESHOLD_M - distSinceAuth) / 1000).toFixed(1);
+                    gpsLabel.textContent = `DRIVING (${km}km) • NEXT: ${remaining}km`;
+                    gpsStatus.classList.remove('moving');
+                }
+            }
 
         }, (err) => {
             gpsLabel.textContent = 'GPS SIGNAL LOST';
@@ -187,8 +204,11 @@
         stopPoll();
         clearStable();
         clearReset();
+        
+        // Reset anchors for a fresh trip cycle
+        prevPosition = null; 
+        lastAuthPosition = null;
 
-        // Stop camera if it was on (using public endpoint)
         fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
     }
 
@@ -200,6 +220,9 @@
         stopPoll();
         clearStable();
         clearReset();
+
+        // Ensure moving effect is off when we arrive at scanning UI
+        gpsStatus.classList.remove('moving');
 
         async function poll() {
             if (state !== 'idle' || pollTimer === null) return;
@@ -301,8 +324,27 @@
         driverName.textContent = data.driver_name ? `Welcome, ${data.driver_name}` : 'Driver Identified';
         authMeta.textContent = data.similarity ? `Match confidence: ${(data.similarity * 100).toFixed(1)}%` : '';
 
+        // Capture the coordinates where verification succeeded (using cached stream)
+        if (latestCoords) {
+            lastAuthPosition = { ...latestCoords };
+        }
+
         animateTimer(authTimer, AUTH_HOLD_MS);
-        resetTimer = setTimeout(startMovementWait, AUTH_HOLD_MS); // Go back to waiting for next movement
+        resetTimer = setTimeout(startDrivingMode, AUTH_HOLD_MS); 
+    }
+
+    /* ── DRIVING Mode: Trip is in progress, camera OFF ─────── */
+    function startDrivingMode() {
+        setState('driving');
+        verifying = false;
+        stopPoll();
+        clearStable();
+        clearReset();
+
+        // Security/Privacy: Shut down the camera hardware
+        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
+        
+        console.log('[driver] Driver Authorized. Entering monitoring mode (5km threshold).');
     }
 
     /* ── UNAUTHORIZED result ────────────────────────────────────── */

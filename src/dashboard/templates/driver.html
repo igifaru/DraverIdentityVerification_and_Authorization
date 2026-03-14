@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -22,7 +22,7 @@
         <div class="movement-wait-content" id="movementWait">
             <div class="radar-pulse"></div>
             <div class="wait-label">VEHICLE ARMED — WAITING FOR MOVEMENT</div>
-            <div class="wait-sub">Verification will trigger automatically upon driving (6m threshold)</div>
+            <div class="wait-sub">Verification will trigger automatically upon driving (>=6m threshold)</div>
         </div>
 
         <svg class="guide-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
@@ -115,8 +115,8 @@
                     <line x1="33" y1="15" x2="15" y2="33" stroke="#e63946" stroke-width="3" stroke-linecap="round" />
                 </svg>
             </div>
-            <div class="result-headline denied">DRIVER NOT RECOGNIZED</div>
-            <div class="result-sub">Unauthorized access attempt</div>
+            <div class="result-headline denied">ACCESS DENIED</div>
+            <div class="result-sub" id="deniedReason">Unauthorized access attempt</div>
             <div class="alert-note">⚡ Alert sent to administrator</div>
             <div class="timer-track">
                 <div class="timer-bar denied" id="deniedTimer"></div>

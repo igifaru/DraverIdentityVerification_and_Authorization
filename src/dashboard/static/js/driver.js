@@ -28,13 +28,14 @@
     const CLOCK_MS = 1000;   // clock refresh
     const GPS_THRESHOLD_M = 6;    // Trip start trigger
     const REVERIFY_THRESHOLD_M = 5000; // 5km periodic trigger
-    const GPS_MIN_ACCURACY = 50;  // maximum acceptable accuracy in meters
+    const GPS_MIN_ACCURACY = 150; // Relaxed from 50m for better device compatibility
 
     /* ── DOM refs ─────────────────────────────────────────────────── */
     const body = document.body;
     const countBar = document.getElementById('countdownBar');
     const authTimer = document.getElementById('authTimer');
     const deniedTimer = document.getElementById('deniedTimer');
+    const deniedReason = document.getElementById('deniedReason');
     const driverName = document.getElementById('driverName');
     const authMeta = document.getElementById('authMeta');
     const stateLed = document.getElementById('stateLed');
@@ -86,6 +87,7 @@
     /* ── GPS Management ─────────────────────────────────────────── */
     function initGPS() {
         if (!navigator.geolocation) {
+            console.error('[GPS] Geolocation is not supported by this browser.');
             gpsLabel.textContent = 'GPS NOT SUPPORTED';
             gpsStatus.style.color = 'var(--red)';
             return;
@@ -97,60 +99,61 @@
             maximumAge: 0
         };
 
+        console.log('[GPS] Starting high-accuracy watcher...');
+
         gpsWatchId = navigator.geolocation.watchPosition((pos) => {
             const { latitude, longitude, accuracy } = pos.coords;
+            
+            // Requirement 7: Add console logs
+            console.log(`[GPS] Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)} | Accuracy: ${accuracy.toFixed(1)}m`);
+
+            // Requirement 8: Warn about low accuracy but continue (teammate's recommended fix)
             if (accuracy > GPS_MIN_ACCURACY) {
-                gpsLabel.textContent = `GPS ACCURACY LOW (${Math.round(accuracy)}m)`;
-                gpsStatus.classList.remove('moving');
-                return;
+                console.warn(`[GPS] Low accuracy (${accuracy.toFixed(1)}m > ${GPS_MIN_ACCURACY}m) but continuing...`);
+                gpsLabel.textContent = `WEAK SIGNAL (±${Math.round(accuracy)}m)`;
             }
 
-            // Cache for use in showAuthorized
+            // Cache for general use
             latestCoords = { lat: latitude, lon: longitude };
 
+            // Requirement 3: Store the first detected coordinate as starting position
             if (!prevPosition) {
                 prevPosition = { lat: latitude, lon: longitude };
-                gpsLabel.textContent = 'VEHICLE STATIONARY';
+                console.log(`[GPS] Starting position set: ${latitude}, ${longitude}`);
+                gpsLabel.textContent = 'SYSTEM ARMED - STATIONARY';
                 return;
             }
 
-            const distFromAnchor = haversine(prevPosition.lat, prevPosition.lon, latitude, longitude);
+            // Requirement 4: Continuously compare with starting coordinates using Haversine
+            const distance = haversine(prevPosition.lat, prevPosition.lon, latitude, longitude);
+            
+            // Requirement 7: Log calculated distance
+            console.log(`[GPS] Distance from start: ${distance.toFixed(2)}m`);
 
-            // ─── LOGIC A: TRIP START (6m) ───
+            // Requirement 5 & 6: Trigger if distance >= 6 meters, with sanity check on accuracy
             if (state === 'waiting_movement') {
-                // To avoid signal jump triggers, movement must be > threshold AND accuracy must be decent
-                if (distFromAnchor >= GPS_THRESHOLD_M && accuracy < 20) {
-                    gpsLabel.textContent = `TRIP START: ${distFromAnchor.toFixed(1)}m`;
+                // Professional touch: ensure accuracy is at least within 200m before triggering
+                if (distance >= GPS_THRESHOLD_M && accuracy < 200) {
+                    console.log(`[GPS] Movement detected: ${distance.toFixed(1)}m. TRIGGERING CAMERA.`);
+                    gpsLabel.textContent = `MOVEMENT DETECTED: ${distance.toFixed(1)}m`;
                     gpsStatus.classList.add('moving');
-                    startIdle(); 
-                } else {
-                    gpsLabel.textContent = `STATIONARY (${distFromAnchor.toFixed(1)}m)`;
-                    // If we've drifted significantly (3x threshold) without a trigger, 
-                    // it's likely signal noise. Re-anchor to current spot.
-                    if (distFromAnchor > (GPS_THRESHOLD_M * 3)) {
-                        prevPosition = { lat: latitude, lon: longitude };
+                    
+                    // Requirement 10: Stop GPS watcher to avoid repeated triggering
+                    if (gpsWatchId !== null) {
+                        navigator.geolocation.clearWatch(gpsWatchId);
+                        gpsWatchId = null;
+                        console.log('[GPS] Watcher stopped after trigger.');
                     }
-                }
-            }
 
-            // ─── LOGIC B: EN-ROUTE RE-VERIFY (5km) ───
-            else if (state === 'driving' && lastAuthPosition) {
-                const distSinceAuth = haversine(lastAuthPosition.lat, lastAuthPosition.lon, latitude, longitude);
-                const km = (distSinceAuth / 1000).toFixed(2);
-                
-                if (distSinceAuth >= REVERIFY_THRESHOLD_M) {
-                    gpsLabel.textContent = `RE-VERIFYING (${km}km)`;
-                    gpsStatus.classList.add('moving');
                     startIdle(); 
                 } else {
-                    const remaining = ((REVERIFY_THRESHOLD_M - distSinceAuth) / 1000).toFixed(1);
-                    gpsLabel.textContent = `DRIVING (${km}km) • NEXT: ${remaining}km`;
-                    gpsStatus.classList.remove('moving');
+                    gpsLabel.textContent = `ARMED: ${distance.toFixed(1)}m MOVED`;
                 }
             }
 
         }, (err) => {
-            gpsLabel.textContent = 'GPS SIGNAL LOST';
+            console.error(`[GPS] Error (${err.code}): ${err.message}`);
+            gpsLabel.textContent = 'GPS SIGNAL ERROR';
             gpsStatus.style.color = 'var(--red)';
         }, options);
     }
@@ -208,6 +211,10 @@
         // Reset anchors for a fresh trip cycle
         prevPosition = null; 
         lastAuthPosition = null;
+
+        if (gpsWatchId === null) {
+            initGPS();
+        }
 
         fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
     }
@@ -350,6 +357,11 @@
     /* ── UNAUTHORIZED result ────────────────────────────────────── */
     function showUnauthorized(data) {
         setState('unauthorized');
+        if (data.status_message) {
+            deniedReason.textContent = data.status_message;
+        } else {
+            deniedReason.textContent = 'Unauthorized access attempt';
+        }
         animateTimer(deniedTimer, DENY_HOLD_MS);
         resetTimer = setTimeout(startMovementWait, DENY_HOLD_MS); // Go back to waiting for next movement
     }

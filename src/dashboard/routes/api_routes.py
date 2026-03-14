@@ -144,6 +144,7 @@ def driver_verify():
         'driver_name': result.get('driver_name'),
         'similarity':  round(float(result.get('similarity_score', 0.0)), 4),
         'event_id':    result.get('log_id'),
+        'status_message': result.get('status_message', ''),
     })
 
 

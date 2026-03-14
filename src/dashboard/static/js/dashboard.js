@@ -1,4 +1,4 @@
-﻿/**
+/**
  * dashboard.js — Draver Control Room
  * Extracted from index.html. No inline code remains in the template.
  */
@@ -635,7 +635,10 @@ async function deleteDriver(driverId, driverName) {
     }
 }
 
-let _highestSeenLogId = null;
+let _highestSeenLogId = localStorage.getItem('draver_highest_seen_id') ? 
+                        parseInt(localStorage.getItem('draver_highest_seen_id')) : null;
+let _readLogIds = JSON.parse(localStorage.getItem('draver_read_ids') || '[]');
+
 let _systemConfig = {
     brightness_no_signal: 8,
     brightness_low_light: 40
@@ -647,22 +650,28 @@ async function fetchAlerts() {
         const list = await res.json();
         if (!list || !list.length) return;
 
-        // On the very first poll, just figure out the latest ID so we don't spam old alerts
+        const maxId = Math.max(...list.map(a => a.log_id || 0));
+
+        // On the very first poll after a fresh session
         if (_highestSeenLogId === null) {
-            _highestSeenLogId = Math.max(...list.map(a => a.log_id || 0));
+            _highestSeenLogId = maxId;
+            localStorage.setItem('draver_highest_seen_id', _highestSeenLogId);
+            // Show last few unread as history if they exist AND haven't been individually read
+            const history = list.filter(a => (!a.authorized || a.similarity_score < 0.75) && 
+                                            !_readLogIds.includes(a.log_id)).slice(0, 5);
+            history.reverse().forEach(a => addNotification(a, false));
             return;
         }
 
-        const maxId = Math.max(...list.map(a => a.log_id || 0));
-
         if (maxId > _highestSeenLogId) {
-            // Only grab strictly new alerts that are unauthorized (or category mismatch)
-            const newAlerts = list.filter(a => (a.log_id || 0) > _highestSeenLogId && a.authorized === false);
+            const newAlerts = list.filter(a => (a.log_id || 0) > _highestSeenLogId && 
+                                              (!a.authorized || a.similarity_score < 0.75));
 
             _highestSeenLogId = maxId;
+            // We don't update localStorage here yet, only when they clear or interact
+            // so that unread badge persists if they just refresh without reading.
 
-            // Reverse so they are added to the notifications in chronological order
-            newAlerts.reverse().forEach(a => addNotification(a));
+            newAlerts.reverse().forEach(a => addNotification(a, true));
         }
     } catch (e) {
         console.error('fetchAlerts error:', e);
@@ -768,15 +777,36 @@ function toggleNotifications() {
 
 function clearUnreadAlerts() {
     _unreadAlerts = [];
+    _readLogIds = []; // Clear individual read markers too as they are superseded by the new threshold
+    localStorage.removeItem('draver_read_ids');
+    
     updateNotificationBadge();
     renderNotificationsList();
     document.getElementById('notificationsDropdown').classList.remove('active');
+    
+    // Save state so they don't return on refresh
+    if (_highestSeenLogId !== null) {
+        localStorage.setItem('draver_highest_seen_id', _highestSeenLogId);
+    }
 }
 
-function addNotification(incident) {
+function addNotification(incident, showToast = true) {
+    // Check if already in list OR already read
+    if (_unreadAlerts.some(a => a.log_id === incident.log_id)) return;
+    if (_readLogIds.includes(incident.log_id)) return;
+
     // Add to top of list
     _unreadAlerts.unshift(incident);
     updateNotificationBadge();
+
+    if (showToast) {
+        const type = incident.authorized ? 'warn' : 'err';
+        const title = incident.authorized ? 'Suspicious Activity' : 'Security Breach';
+        const msg = incident.authorized 
+            ? `Low confidence match for ${incident.driver_name || 'Driver'}`
+            : `Unauthorized access attempt detected!`;
+        notify(`${title}: ${msg}`, type);
+    }
 
     // Optionally update the list if it's currently open
     const dropdown = document.getElementById('notificationsDropdown');
@@ -795,6 +825,33 @@ function updateNotificationBadge() {
     }
 }
 
+function viewNotificationIncident(id) {
+    const idx = _unreadAlerts.findIndex(a => a.log_id === id);
+    if (idx === -1) return;
+    
+    const incident = _unreadAlerts[idx];
+
+    // Mark as read locally and persist
+    _readLogIds.push(id);
+    localStorage.setItem('draver_read_ids', JSON.stringify(_readLogIds));
+
+    // Remove from unread list so count goes down (e.g. 5 -> 4)
+    _unreadAlerts.splice(idx, 1);
+    
+    // Update investigative UI
+    const content = document.getElementById('incidentDetailContent');
+    content.innerHTML = renderIncidentDetails(incident);
+    document.getElementById('incidentDrawer').classList.add('active');
+
+    // Update bell icon badge and list immediately
+    updateNotificationBadge();
+    renderNotificationsList();
+    
+    // Close dropdown
+    const dropdown = document.getElementById('notificationsDropdown');
+    dropdown.classList.remove('active');
+}
+
 function renderNotificationsList() {
     const list = document.getElementById('notificationsList');
     if (_unreadAlerts.length === 0) {
@@ -802,11 +859,31 @@ function renderNotificationsList() {
         return;
     }
 
-    list.innerHTML = _unreadAlerts.map(incident => `
-        <div class="toast-incident-card" style="position:relative; border-bottom:1px solid var(--border); padding-bottom:15px; margin-bottom:15px;">
-            ${renderIncidentDetails(incident)}
-        </div>
-    `).join('');
+    list.innerHTML = _unreadAlerts.map(incident => {
+        const ts = new Date(incident.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const color = incident.authorized ? 'var(--warn)' : 'var(--err)';
+        const icon = incident.authorized ? 'fa-user-clock' : 'fa-user-secret';
+        const title = incident.authorized ? 'Low Confidence' : 'Security Breach';
+        const name = incident.authorized ? (incident.driver_name || 'Driver') : 'Unauthorized Attempt';
+        
+        return `
+            <div class="notification-item" onclick="viewNotificationIncident(${incident.log_id})" style="padding:12px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.2s;">
+                <div style="display:flex; align-items:flex-start; gap:10px;">
+                    <div style="width:32px; height:32px; border-radius:50%; background:${color}15; color:${color}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div style="flex:1;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                            <span style="font-size:11px; font-weight:700; color:${color}; text-transform:uppercase; letter-spacing:0.02em;">${title}</span>
+                            <span style="font-size:10px; color:var(--text-muted);">${ts}</span>
+                        </div>
+                        <div style="font-size:13px; font-weight:600; color:var(--text); margin-bottom:2px;">${name}</div>
+                        <div style="font-size:11px; color:var(--text-soft);">Vechicle: ${incident.system_id || 'UNKNOWN'}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 // Global click handler to close dropdown if clicked outside

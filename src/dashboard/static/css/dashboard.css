@@ -1,4 +1,4 @@
-﻿/* ================================================================
+/* ================================================================
    DESIGN TOKENS — Two themes, one accent colour (blue)
    ================================================================ */
 :root {
@@ -350,6 +350,14 @@ nav.sidebar-nav {
     text-align: center;
     color: var(--text-soft);
     font-size: 0.85rem;
+}
+
+.notification-item:hover {
+    background: var(--bg-raised) !important;
+}
+
+.notification-item:active {
+    background: var(--accent-subtle) !important;
 }
 
 

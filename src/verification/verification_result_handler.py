@@ -19,57 +19,14 @@ class VerificationResultHandler:
     @staticmethod
     def draw_result(frame: np.ndarray, result: Dict) -> np.ndarray:
         """
-        Draw verification result overlay on frame
-        
-        Args:
-            frame: Input video frame
-            result: Verification result dictionary
-            
-        Returns:
-            Annotated frame
+        Draw verification result overlay on frame.
+        NOTE: We now skip drawing heavy banners/text here because the 
+        web UI handles status display with better aesthetics and accessibility.
         """
         annotated = frame.copy()
         
-        # Determine status color and text
-        if result['authorized']:
-            status_color = COLOR_AUTHORIZED
-            status_text = "AUTHORIZED"
-        elif "No face" in result.get('status_message', ''):
-            status_color = (128, 128, 128) # Gray
-            status_text = "SCANNING..."
-        elif "LOW LIGHT" in result.get('status_message', ''):
-            status_color = COLOR_WARNING
-            status_text = "LOW LIGHT"
-        else:
-            status_color = COLOR_UNAUTHORIZED
-            status_text = "UNAUTHORIZED"
-            
-        # Draw status banner
-        cv2.rectangle(annotated, (0, 0), (annotated.shape[1], 80), status_color, -1)
-        
-        # Draw main status text
-        cv2.putText(
-            annotated, 
-            status_text, 
-            (20, 40), 
-            cv2.FONT_HERSHEY_SIMPLEX, 
-            FONT_SCALE_HEADER, 
-            (255, 255, 255), 
-            3
-        )
-        
-        # Draw secondary message
-        if result.get('status_message'):
-            cv2.putText(
-                annotated, 
-                result['status_message'], 
-                (20, 70), 
-                cv2.FONT_HERSHEY_SIMPLEX, 
-                0.6, 
-                (255, 255, 255), 
-                1
-            )
-        
+        # We only draw a subtle status indicator if debugging or specifically requested.
+        # Otherwise, the clean frame is preferred for the web view to avoid mirroring issues.
         return annotated
 
     @staticmethod

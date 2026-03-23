@@ -130,24 +130,37 @@
             // Requirement 7: Log calculated distance
             console.log(`[GPS] Distance from start: ${distance.toFixed(2)}m`);
 
-            // Requirement 5 & 6: Trigger if distance >= 6 meters, with sanity check on accuracy
+            // ─── LOGIC A: TRIP START (6m) ───
             if (state === 'waiting_movement') {
-                // Professional touch: ensure accuracy is at least within 200m before triggering
-                if (distance >= GPS_THRESHOLD_M && accuracy < 200) {
+                if (distance >= GPS_THRESHOLD_M && accuracy < 25) {
                     console.log(`[GPS] Movement detected: ${distance.toFixed(1)}m. TRIGGERING CAMERA.`);
                     gpsLabel.textContent = `MOVEMENT DETECTED: ${distance.toFixed(1)}m`;
                     gpsStatus.classList.add('moving');
-                    
-                    // Requirement 10: Stop GPS watcher to avoid repeated triggering
-                    if (gpsWatchId !== null) {
-                        navigator.geolocation.clearWatch(gpsWatchId);
-                        gpsWatchId = null;
-                        console.log('[GPS] Watcher stopped after trigger.');
-                    }
-
                     startIdle(); 
                 } else {
                     gpsLabel.textContent = `ARMED: ${distance.toFixed(1)}m MOVED`;
+                    // If we've drifted significantly (3x threshold) without a trigger, 
+                    // it's likely signal noise. Re-anchor to current spot.
+                    if (distance > (GPS_THRESHOLD_M * 3)) {
+                        prevPosition = { lat: latitude, lon: longitude };
+                    }
+                }
+            }
+
+            // ─── LOGIC B: EN-ROUTE RE-VERIFY (5km) ───
+            else if (state === 'driving' && lastAuthPosition) {
+                const distSinceAuth = haversine(lastAuthPosition.lat, lastAuthPosition.lon, latitude, longitude);
+                const km = (distSinceAuth / 1000).toFixed(2);
+                
+                if (distSinceAuth >= REVERIFY_THRESHOLD_M) {
+                    console.log(`[GPS] 5km Threshold Reached: ${km}km. RE-VERIFYING.`);
+                    gpsLabel.textContent = `RE-VERIFYING (${km}km)`;
+                    gpsStatus.classList.add('moving');
+                    startIdle(); 
+                } else {
+                    const remaining = ((REVERIFY_THRESHOLD_M - distSinceAuth) / 1000).toFixed(1);
+                    gpsLabel.textContent = `DRIVING (${km}km) • NEXT: ${remaining}km`;
+                    gpsStatus.classList.remove('moving');
                 }
             }
 

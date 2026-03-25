@@ -80,14 +80,44 @@ class VerificationRepository:
     def log_verification(self, log: VerificationLog) -> Tuple[int, bool]:
         """
         Insert a verification event row and return the generated log_id.
-
-        Args:
-            log: Populated VerificationLog dataclass (log_id will be ignored).
+        Implements an anti-spam logic: if an unauthorized attempt happens 
+        on the same node within 15 seconds, we update the existing record 
+        (increment retry_count) instead of creating a new one.
 
         Returns:
             Tuple of (log_id, is_new_incident)
         """
         with self._db() as cur:
+            # 1. Check for recent unauthorized duplicates from the same node (anti-spam)
+            if not log.authorized and log.system_id:
+                cur.execute(
+                    """
+                    SELECT log_id, retry_count, timestamp
+                    FROM verification_logs
+                    WHERE system_id = %s AND authorized = FALSE
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                    """,
+                    (log.system_id,)
+                )
+                last = cur.fetchone()
+                
+                if last:
+                    # If the last unauthorized attempt was less than 15s ago, it's the same incident
+                    # We use .timestamp() for a clean float comparison
+                    last_ts = last['timestamp'].timestamp()
+                    now_ts = datetime.now().timestamp()
+                    
+                    if (now_ts - last_ts) < 15:
+                        # Update existing row
+                        new_retry = last['retry_count'] + 1
+                        cur.execute(
+                            "UPDATE verification_logs SET retry_count = %s, timestamp = %s WHERE log_id = %s",
+                            (new_retry, datetime.now(), last['log_id'])
+                        )
+                        return last['log_id'], False
+
+            # 2. Otherwise, insert a new record
             cur.execute(
                 """
                 INSERT INTO verification_logs

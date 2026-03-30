@@ -29,6 +29,7 @@
     const GPS_THRESHOLD_M = 6;    // Trip start trigger
     const REVERIFY_THRESHOLD_M = 5000; // 5km periodic trigger
     const GPS_MIN_ACCURACY = 150; // Relaxed from 50m for better device compatibility
+    const GPS_MIN_SPEED_MS = 0.5; // 0.5 m/s ≈ 1.8 km/h — minimum speed to confirm real movement
 
     /* ── DOM refs ─────────────────────────────────────────────────── */
     const body = document.body;
@@ -51,11 +52,12 @@
     let resetTimer = null;
     let checkStableTimer = null;
     let verifying = false;
-    let isStartingCamera = false; // Lock to prevent multiple concurrent start requests
-    let prevPosition = null;      // Anchor for "Stationary" vs "Moving" HUD logic
-    let lastAuthPosition = null;  // Anchor for the 5km periodic check
-    let latestCoords = null;      // Cached latest high-accuracy coordinates
+    let isStartingCamera = false;    // Lock to prevent multiple concurrent start requests
+    let prevPosition = null;         // Anchor for "Stationary" vs "Moving" HUD logic
+    let lastAuthPosition = null;     // Anchor for the 5km periodic check
+    let latestCoords = null;         // Cached latest high-accuracy coordinates
     let gpsWatchId = null;
+    let movementConfirmCount = 0;    // Consecutive readings above 6m (noise guard for no-speed devices)
 
     /* ── Helpers ──────────────────────────────────────────────────── */
     function setState(s) {
@@ -102,10 +104,10 @@
         console.log('[GPS] Starting high-accuracy watcher...');
 
         gpsWatchId = navigator.geolocation.watchPosition((pos) => {
-            const { latitude, longitude, accuracy } = pos.coords;
-            
+            const { latitude, longitude, accuracy, speed } = pos.coords;
+
             // Requirement 7: Add console logs
-            console.log(`[GPS] Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)} | Accuracy: ${accuracy.toFixed(1)}m`);
+            console.log(`[GPS] Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)} | Accuracy: ${accuracy.toFixed(1)}m | Speed: ${speed !== null ? speed.toFixed(2) + 'm/s' : 'n/a'}`);
 
             // Requirement 8: Warn about low accuracy but continue (teammate's recommended fix)
             if (accuracy > GPS_MIN_ACCURACY) {
@@ -132,16 +134,43 @@
 
             // ─── LOGIC A: TRIP START (6m) ───
             if (state === 'waiting_movement') {
-                if (distance >= GPS_THRESHOLD_M && accuracy < 25) {
-                    console.log(`[GPS] Movement detected: ${distance.toFixed(1)}m. TRIGGERING CAMERA.`);
-                    gpsLabel.textContent = `MOVEMENT DETECTED: ${distance.toFixed(1)}m`;
-                    gpsStatus.classList.add('moving');
-                    startIdle(); 
+                const speedAvailable = speed !== null && speed !== undefined;
+
+                if (distance >= GPS_THRESHOLD_M && accuracy < GPS_MIN_ACCURACY) {
+
+                    if (speedAvailable && speed >= GPS_MIN_SPEED_MS) {
+                        // ── Case 1: speed sensor confirms vehicle is moving → trigger immediately
+                        movementConfirmCount = 0;
+                        console.log(`[GPS] TRIGGER (speed): ${distance.toFixed(1)}m @ ${speed.toFixed(2)}m/s`);
+                        gpsLabel.textContent = `MOVEMENT DETECTED: ${distance.toFixed(1)}m`;
+                        gpsStatus.classList.add('moving');
+                        startIdle();
+
+                    } else if (!speedAvailable) {
+                        // ── Case 2: no speed sensor (laptop / WiFi positioning) — GPS noise can
+                        //    easily drift 6-15m while stationary, so require 3 CONSECUTIVE readings
+                        //    all above the threshold before trusting the distance.
+                        movementConfirmCount++;
+                        console.log(`[GPS] Movement reading ${movementConfirmCount}/3: ${distance.toFixed(1)}m (speed unavailable)`);
+                        gpsLabel.textContent = `CONFIRMING MOVEMENT (${movementConfirmCount}/3): ${distance.toFixed(1)}m`;
+                        if (movementConfirmCount >= 3) {
+                            movementConfirmCount = 0;
+                            console.log(`[GPS] TRIGGER (3× confirmed): ${distance.toFixed(1)}m`);
+                            gpsStatus.classList.add('moving');
+                            startIdle();
+                        }
+
+                    }
+                    // ── Case 3: speed available but below threshold → device confirms stationary,
+                    //    distance reading is pure GPS noise — do nothing, don't trigger.
+
                 } else {
+                    // Distance below 6m — reset confirmation streak
+                    movementConfirmCount = 0;
                     gpsLabel.textContent = `ARMED: ${distance.toFixed(1)}m MOVED`;
-                    // If we've drifted significantly (3x threshold) without a trigger, 
-                    // it's likely signal noise. Re-anchor to current spot.
-                    if (distance > (GPS_THRESHOLD_M * 3)) {
+                    // Re-anchor on large noise drift only when speed confirms stationary
+                    const speedConfirmsStationary = !speedAvailable || speed < GPS_MIN_SPEED_MS;
+                    if (distance > (GPS_THRESHOLD_M * 3) && accuracy < GPS_MIN_ACCURACY && speedConfirmsStationary) {
                         prevPosition = { lat: latitude, lon: longitude };
                     }
                 }
@@ -221,9 +250,10 @@
         clearStable();
         clearReset();
         
-        // Reset anchors for a fresh trip cycle
-        prevPosition = null; 
+        // Reset anchors and movement counter for a fresh trip cycle
+        prevPosition = null;
         lastAuthPosition = null;
+        movementConfirmCount = 0;
 
         if (gpsWatchId === null) {
             initGPS();
@@ -331,10 +361,14 @@
             } else if (data.state === 'unauthorized') {
                 showUnauthorized(data);
             } else {
-                startIdle();
+                // no_face or unexpected state — one attempt was made; shut camera off
+                fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
+                startMovementWait();
             }
         } catch (e) {
-            startIdle();
+            // Network failure — shut camera off rather than leaving it running
+            fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
+            startMovementWait();
         }
     }
 

@@ -26,10 +26,10 @@
     const AUTH_HOLD_MS = 3000;   // green result shown for
     const DENY_HOLD_MS = 5000;   // red result shown for
     const CLOCK_MS = 1000;   // clock refresh
-    const GPS_THRESHOLD_M = 6;    // Trip start trigger
+    const GPS_THRESHOLD_M = 6;    // Trip start trigger (coordinate-change based)
     const REVERIFY_THRESHOLD_M = 5000; // 5km periodic trigger
-    const GPS_MIN_ACCURACY = 150; // Relaxed from 50m for better device compatibility
-    const GPS_MIN_SPEED_MS = 0.5; // 0.5 m/s ≈ 1.8 km/h — minimum speed to confirm real movement
+    const GPS_MIN_ACCURACY = 150; // Max accepted accuracy radius in metres
+    const MOVEMENT_CONFIRM_NEEDED = 2; // Consecutive readings above threshold before trigger
 
     /* ── DOM refs ─────────────────────────────────────────────────── */
     const body = document.body;
@@ -57,7 +57,7 @@
     let lastAuthPosition = null;     // Anchor for the 5km periodic check
     let latestCoords = null;         // Cached latest high-accuracy coordinates
     let gpsWatchId = null;
-    let movementConfirmCount = 0;    // Consecutive readings above 6m (noise guard for no-speed devices)
+    let movementConfirmCount = 0;    // Consecutive coordinate readings above 6m threshold (noise guard)
 
     /* ── Helpers ──────────────────────────────────────────────────── */
     function setState(s) {
@@ -104,10 +104,9 @@
         console.log('[GPS] Starting high-accuracy watcher...');
 
         gpsWatchId = navigator.geolocation.watchPosition((pos) => {
-            const { latitude, longitude, accuracy, speed } = pos.coords;
+            const { latitude, longitude, accuracy } = pos.coords;
 
-            // Requirement 7: Add console logs
-            console.log(`[GPS] Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)} | Accuracy: ${accuracy.toFixed(1)}m | Speed: ${speed !== null ? speed.toFixed(2) + 'm/s' : 'n/a'}`);
+            console.log(`[GPS] Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)} | Accuracy: ${accuracy.toFixed(1)}m`);
 
             // Requirement 8: Warn about low accuracy but continue (teammate's recommended fix)
             if (accuracy > GPS_MIN_ACCURACY) {
@@ -132,46 +131,37 @@
             // Requirement 7: Log calculated distance
             console.log(`[GPS] Distance from start: ${distance.toFixed(2)}m`);
 
-            // ─── LOGIC A: TRIP START (6m) ───
+            // ─── LOGIC A: TRIP START (>=6m coordinate change) ───
             if (state === 'waiting_movement') {
-                const speedAvailable = speed !== null && speed !== undefined;
-
                 if (distance >= GPS_THRESHOLD_M && accuracy < GPS_MIN_ACCURACY) {
+                    // Require MOVEMENT_CONFIRM_NEEDED consecutive readings all above the threshold
+                    // before triggering. A single GPS noise spike won't satisfy two readings in a row,
+                    // but real physical movement will keep the distance growing so all readings pass.
+                    movementConfirmCount++;
+                    console.log(`[GPS] Movement ${movementConfirmCount}/${MOVEMENT_CONFIRM_NEEDED}: ${distance.toFixed(1)}m`);
+                    gpsLabel.textContent = `CONFIRMING MOVEMENT (${movementConfirmCount}/${MOVEMENT_CONFIRM_NEEDED}): ${distance.toFixed(1)}m`;
 
-                    if (speedAvailable && speed >= GPS_MIN_SPEED_MS) {
-                        // ── Case 1: speed sensor confirms vehicle is moving → trigger immediately
+                    if (movementConfirmCount >= MOVEMENT_CONFIRM_NEEDED) {
                         movementConfirmCount = 0;
-                        console.log(`[GPS] TRIGGER (speed): ${distance.toFixed(1)}m @ ${speed.toFixed(2)}m/s`);
+                        console.log(`[GPS] TRIGGER: ${distance.toFixed(1)}m confirmed. Turning camera ON.`);
                         gpsLabel.textContent = `MOVEMENT DETECTED: ${distance.toFixed(1)}m`;
                         gpsStatus.classList.add('moving');
                         startIdle();
-
-                    } else if (!speedAvailable) {
-                        // ── Case 2: no speed sensor (laptop / WiFi positioning) — GPS noise can
-                        //    easily drift 6-15m while stationary, so require 3 CONSECUTIVE readings
-                        //    all above the threshold before trusting the distance.
-                        movementConfirmCount++;
-                        console.log(`[GPS] Movement reading ${movementConfirmCount}/3: ${distance.toFixed(1)}m (speed unavailable)`);
-                        gpsLabel.textContent = `CONFIRMING MOVEMENT (${movementConfirmCount}/3): ${distance.toFixed(1)}m`;
-                        if (movementConfirmCount >= 3) {
-                            movementConfirmCount = 0;
-                            console.log(`[GPS] TRIGGER (3× confirmed): ${distance.toFixed(1)}m`);
-                            gpsStatus.classList.add('moving');
-                            startIdle();
-                        }
-
                     }
-                    // ── Case 3: speed available but below threshold → device confirms stationary,
-                    //    distance reading is pure GPS noise — do nothing, don't trigger.
-
                 } else {
-                    // Distance below 6m — reset confirmation streak
+                    // Reading dropped below 6m — reset streak (noise spike, not real movement)
+                    if (movementConfirmCount > 0) {
+                        console.log(`[GPS] Streak reset. Distance ${distance.toFixed(1)}m < ${GPS_THRESHOLD_M}m`);
+                    }
                     movementConfirmCount = 0;
                     gpsLabel.textContent = `ARMED: ${distance.toFixed(1)}m MOVED`;
-                    // Re-anchor on large noise drift only when speed confirms stationary
-                    const speedConfirmsStationary = !speedAvailable || speed < GPS_MIN_SPEED_MS;
-                    if (distance > (GPS_THRESHOLD_M * 3) && accuracy < GPS_MIN_ACCURACY && speedConfirmsStationary) {
+
+                    // Re-anchor if coordinates have drifted far without a trigger.
+                    // Only re-anchor when confirmation streak is clean (count=0) so we
+                    // don't reset the anchor mid-count while the user is genuinely moving.
+                    if (distance > (GPS_THRESHOLD_M * 3) && accuracy < GPS_MIN_ACCURACY) {
                         prevPosition = { lat: latitude, lon: longitude };
+                        console.log(`[GPS] Anchor reset (drift ${distance.toFixed(1)}m, no trigger).`);
                     }
                 }
             }

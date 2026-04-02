@@ -468,6 +468,18 @@ async function commitEnrollment(name, id, dob, gender, expiry_date, issue_place)
 
         if (data.success) {
             setEnrollMsg(data.message || 'Driver enrolled successfully.', 'ok');
+            // Advance the seen-alert watermark so any unauthorized scans that happened
+            // DURING enrollment (face not yet enrolled) don't pop up as error toasts.
+            try {
+                const alertRes = await fetch('/api/alerts?limit=1');
+                const alertList = await alertRes.json();
+                if (alertList && alertList.length) {
+                    const latestId = Math.max(...alertList.map(a => a.log_id || 0));
+                    _highestSeenLogId = latestId;
+                    localStorage.setItem('draver_highest_seen_id', latestId);
+                }
+            } catch (_) { /* non-critical */ }
+            notify(data.message || 'Driver enrolled successfully.', 'ok');
             setTimeout(resetEnrollForm, 4000);
         } else {
             setEnrollMsg(data.error || 'Enrollment failed.', 'err');

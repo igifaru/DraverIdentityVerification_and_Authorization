@@ -138,41 +138,57 @@
                     const speedAvailable = speed !== null && speed !== undefined;
 
                     if (speedAvailable && speed >= GPS_MIN_SPEED_MS) {
+                        // ── Case 1: speed sensor confirms vehicle is moving → trigger immediately
                         movementConfirmCount = 0;
-                        console.log(`[GPS] STATE1->CAPTURE (speed confirmed): ${distance.toFixed(1)}m @ ${speed.toFixed(2)}m/s`);
+                        console.log(`[GPS] TRIGGER (speed): ${distance.toFixed(1)}m @ ${speed.toFixed(2)}m/s`);
                         gpsLabel.textContent = `MOVEMENT DETECTED: ${distance.toFixed(1)}m`;
                         gpsStatus.classList.add('moving');
                         postLocation('movement_triggered', latitude, longitude, distance);
                         startIdle();
 
                     } else if (!speedAvailable) {
+                        // ── Case 2: no speed sensor (laptop / WiFi positioning) — GPS noise can
+                        //    easily drift 6-15m while stationary, so require 3 CONSECUTIVE readings
+                        //    all above the threshold before trusting the distance.
                         movementConfirmCount++;
                         console.log(`[GPS] STATE1 movement reading ${movementConfirmCount}/3: ${distance.toFixed(1)}m`);
                         gpsLabel.textContent = `CONFIRMING MOVEMENT (${movementConfirmCount}/3): ${distance.toFixed(1)}m`;
                         if (movementConfirmCount >= 3) {
                             movementConfirmCount = 0;
-                            console.log(`[GPS] STATE1->CAPTURE (3x confirmed): ${distance.toFixed(1)}m`);
+                            console.log(`[GPS] TRIGGER (3× confirmed): ${distance.toFixed(1)}m`);
                             gpsStatus.classList.add('moving');
                             postLocation('movement_triggered', latitude, longitude, distance);
                             startIdle();
                         }
                     }
+                    // ── Case 3: speed available but below threshold → device confirms stationary,
+                    //    distance reading is pure GPS noise — do nothing, don't trigger.
 
                 } else {
                     movementConfirmCount = 0;
+                    gpsLabel.textContent = `ARMED: ${distance.toFixed(1)}m MOVED`;
+                    // Re-anchor on large noise drift only when speed confirms stationary
+                    const speedConfirmsStationary = !speedAvailable || speed < GPS_MIN_SPEED_MS;
+                    if (distance > (GPS_THRESHOLD_M * 3) && accuracy < GPS_MIN_ACCURACY && speedConfirmsStationary) {
+                        prevPosition = { lat: latitude, lon: longitude };
+                    }
                 }
             }
 
-            // STATE 3: COOLDOWN
-            else if (state === 'cooldown' && capturePosition) {
-                const distFromCapture = haversine(capturePosition.lat, capturePosition.lon, latitude, longitude);
-                console.log(`[GPS] STATE3 distance from capture: ${distFromCapture.toFixed(2)}m`);
-                gpsLabel.textContent = `COOLDOWN: ${distFromCapture.toFixed(1)}m / ${GPS_COOLDOWN_RESET_M}m`;
-
-                if (distFromCapture >= GPS_COOLDOWN_RESET_M) {
-                    console.log(`[GPS] STATE3->STATE1: ${distFromCapture.toFixed(1)}m >= ${GPS_COOLDOWN_RESET_M}m — resetting`);
-                    postLocation('cooldown_reset', latitude, longitude, distFromCapture);
-                    startMovementWait();
+            // ─── LOGIC B: EN-ROUTE RE-VERIFY (5km) ───
+            else if (state === 'driving' && lastAuthPosition) {
+                const distSinceAuth = haversine(lastAuthPosition.lat, lastAuthPosition.lon, latitude, longitude);
+                const km = (distSinceAuth / 1000).toFixed(2);
+                
+                if (distSinceAuth >= REVERIFY_THRESHOLD_M) {
+                    console.log(`[GPS] 5km Threshold Reached: ${km}km. RE-VERIFYING.`);
+                    gpsLabel.textContent = `RE-VERIFYING (${km}km)`;
+                    gpsStatus.classList.add('moving');
+                    startIdle(); 
+                } else {
+                    const remaining = ((REVERIFY_THRESHOLD_M - distSinceAuth) / 1000).toFixed(1);
+                    gpsLabel.textContent = `DRIVING (${km}km) • NEXT: ${remaining}km`;
+                    gpsStatus.classList.remove('moving');
                 }
             }
 

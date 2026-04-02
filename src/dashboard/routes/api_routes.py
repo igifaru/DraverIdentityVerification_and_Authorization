@@ -448,3 +448,39 @@ def stop_camera_public():
         return jsonify({'success': True})
     return jsonify({'success': True})
 
+
+# ---------------------------------------------------------------------------
+# Location Telemetry  (public — called by driver terminal GPS state machine)
+# ---------------------------------------------------------------------------
+
+@api_bp.route('/location/update', methods=['POST'])
+def location_update():
+    """
+    Receive GPS state-change telemetry from the driver terminal.
+
+    Payload: { state, lat, lon, distance_m }
+    States logged:
+        waiting_movement   — anchor set, system armed
+        movement_triggered — 6m threshold crossed, camera starting
+        capture_authorized — image captured, driver verified
+        capture_unauthorized — image captured, access denied
+        cooldown_reset     — 10m threshold crossed, resetting to STATE 1
+    """
+    data = request.json or {}
+    gps_state   = data.get('state', 'unknown')
+    lat         = data.get('lat')
+    lon         = data.get('lon')
+    distance_m  = data.get('distance_m', 0.0)
+
+    print(f"[location] {gps_state} | lat={lat}, lon={lon} | dist={distance_m}m")
+
+    # Log to audit trail so the admin dashboard can see location events
+    engine = _get_engine()
+    engine.db.log_audit(
+        action=f'GPS_{gps_state.upper()}',
+        user='SYSTEM',
+        details=f'lat={lat}, lon={lon}, distance_m={distance_m}',
+        ip_address=request.remote_addr
+    )
+
+    return jsonify({'received': True, 'state': gps_state})

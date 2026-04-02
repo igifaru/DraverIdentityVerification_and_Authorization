@@ -825,3 +825,65 @@ body[data-state="unauthorized"] .state-word {
     margin: 0 14px;
     opacity: 0.35;
 }
+
+/* ── STATE 3: COOLDOWN ─────────────────────────────────────────────── */
+
+/* Completely hide the camera feed — black screen like waiting_movement */
+body[data-state="cooldown"] #videoFeed {
+    display: none;
+}
+
+/* Hide all scanning overlays */
+body[data-state="cooldown"] .detecting-layer,
+body[data-state="cooldown"] .processing-layer,
+body[data-state="cooldown"] .result-layer {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Show the guide layer (which contains the radar pulse) but hide face-guide elements */
+body[data-state="cooldown"] .guide-layer {
+    opacity: 1;
+}
+
+/* Show the radar pulse in cooldown, same as waiting_movement */
+body[data-state="cooldown"] .movement-wait-content {
+    display: flex;
+}
+
+/* Hide the face-oval guide elements — same as waiting_movement */
+body[data-state="cooldown"] .guide-svg,
+body[data-state="cooldown"] .sweep,
+body[data-state="cooldown"] .bracket,
+body[data-state="cooldown"] .guide-hint {
+    display: none;
+}
+
+/* Amber radar pulse ring (overrides the blue default) */
+body[data-state="cooldown"] .radar-pulse {
+    border-color: #f4a100;
+    animation: radarPulseAmber 2s infinite;
+}
+
+@keyframes radarPulseAmber {
+    0%   { box-shadow: 0 0 0 0 rgba(244,161,0,0.6); }
+    70%  { box-shadow: 0 0 0 40px rgba(244,161,0,0); }
+    100% { box-shadow: 0 0 0 0 rgba(244,161,0,0); }
+}
+
+/* Amber state LED */
+body[data-state="cooldown"] .state-led {
+    background: #f4a100;
+    box-shadow: 0 0 10px #f4a100, 0 0 24px rgba(244,161,0,0.45);
+    animation: pulse-amber 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse-amber {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.35; }
+}
+
+/* Amber state word */
+body[data-state="cooldown"] .state-word {
+    color: #f4a100;
+}

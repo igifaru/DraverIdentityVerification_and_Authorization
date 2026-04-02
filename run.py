@@ -21,7 +21,7 @@ except ImportError as e:
     sys.exit(1)
 
 # Import and run app
-from dashboard.app import create_app
+from src.dashboard.app import create_app
 
 if __name__ == "__main__":
     print(f"Starting Driver Verification System from: {project_root}")

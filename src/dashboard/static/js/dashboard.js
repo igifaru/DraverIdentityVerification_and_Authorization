@@ -6,6 +6,15 @@
 // ------------------------------------------------------------------
 // Utility: non-blocking notification (replaces browser notify())
 // ------------------------------------------------------------------
+function dismissToast(el) {
+    if (!el || el._dismissing) return;
+    el._dismissing = true;
+    el.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(30px)';
+    setTimeout(() => el.remove(), 380);
+}
+
 function notify(msg, type = 'err') {
     const c = document.getElementById('toastContainer');
     if (!c) { console.warn('[notify]', msg); return; }
@@ -25,7 +34,8 @@ function notify(msg, type = 'err') {
             </button>
         </div>`;
     c.appendChild(el);
-    setTimeout(() => dismissToast(el), 6000);
+    // Auto-dismiss after 4 seconds — check the bell icon for full history
+    setTimeout(() => dismissToast(el), 4000);
 }
 
 // ------------------------------------------------------------------

@@ -15,6 +15,9 @@ camera:
   resolution_height: 480
   fps: 30
   device_id: 0  # 0 for default camera, change if using external camera
+  idle_timeout_seconds: 3600  # How long camera stays on without activity (seconds). 3600 = 1 hour.
+  min_face_pixel_width: 60    # Minimum face bounding-box width (px) before verification fires.
+                               # At 640px frame width, 60px ≈ 6 metres. Increase to require closer approach.
 
 database:
   # PostgreSQL connection settings
@@ -23,7 +26,7 @@ database:
   port: 5432
   name: "draver_db"
   user: "postgres"
-  password: "newsecurepassword123"
+  password: "admin123"
   # Optional: set full DSN directly to override all fields above
   # url: "postgresql://postgres:postgres@localhost:5432/draver_db"
 

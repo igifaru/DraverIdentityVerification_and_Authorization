@@ -72,8 +72,13 @@ class VerificationEngine:
         # Camera idle timeout support
         self._camera_lock = threading.Lock() # Lock for camera start/stop
         self._last_camera_activity = time.time() # Initialize to now to prevent immediate timeout
-        self._camera_idle_seconds = 15.0  # Increased to 15s for stability
+        self._camera_idle_seconds = config.get('camera.idle_timeout_seconds', 3600.0)  # Default 1hr — camera stays on between drivers
         self._last_activity_label = "none"
+
+        # Distance-based activation: minimum face pixel width to trigger verification.
+        # At 640px frame width, ~60px face ≈ 6 metres away.
+        # Increase this value to require the person to be closer before verifying.
+        self._min_face_px_width = config.get('camera.min_face_pixel_width', 60)
         
         print("[OK] Verification engine initialized\n")
     
@@ -310,11 +315,13 @@ class VerificationEngine:
                         print("[engine] Camera active. Face detection loop STARTED.")
                         self._was_active = True
 
-                    # Check for camera idle timeout
+                    # Camera idle timeout — only log a warning; do NOT stop the camera.
+                    # The camera stays on indefinitely so it can detect the next driver.
                     if time.time() - self._last_camera_activity > self._camera_idle_seconds:
-                        print(f"[engine] Camera idle for >{self._camera_idle_seconds}s. Stopping automatically.")
-                        self.video_stream.stop()
-                        continue
+                        if time.time() - getattr(self, '_last_idle_warn', 0) > 60:
+                            print(f"[engine] Camera has been idle for >{self._camera_idle_seconds}s — still waiting for next driver.")
+                            self._last_idle_warn = time.time()
+                        self.record_camera_activity(label='idle_keepalive')  # Reset so warning fires once per interval
 
                     # Read frame
                     frame = self.video_stream.read_frame()
@@ -330,7 +337,29 @@ class VerificationEngine:
                         self.raw_frame = frame.copy()
                         
                     display_frame = frame.copy()
-                    
+
+                    # ---- Distance gate: only verify when person is close enough (~6 m) ----
+                    # We estimate distance by the pixel width of the detected face bounding box.
+                    # A face narrower than _min_face_px_width means the person is still too far
+                    # away — keep camera live but skip the heavy verification pipeline.
+                    _nearby_detection = self.face_processor.detect_face(frame, min_confidence=0.70)
+                    _face_width = _nearby_detection['box'][2] if _nearby_detection else 0
+                    if _face_width < self._min_face_px_width:
+                        # Person is beyond 6 m (or no face visible yet) — show standby overlay
+                        _overlay = display_frame.copy()
+                        cv2.putText(_overlay, f"WAITING — move within 6m  (face: {_face_width}px)",
+                                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 200, 255), 2)
+                        with self._frame_lock:
+                            self.latest_frame = _overlay
+                        if show_preview:
+                            cv2.imshow("Driver Verification System", _overlay)
+                            if cv2.waitKey(1) & 0xFF in (ord('q'), 27):
+                                break
+                        self.record_camera_activity(label='distance_wait')
+                        time.sleep(0.1)
+                        continue
+                    # ---- End distance gate ----
+
                     # Check if enough time has passed since last verification
                     current_time = time.time()
                     if self.enable_cooldown:

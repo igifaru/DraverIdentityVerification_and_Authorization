@@ -1,35 +1,39 @@
 /**
  * driver.js — Driver Verification Terminal
  *
- * State machine:
+ * GPS-driven state machine:
  *
- *   IDLE  ──(face detected)──► DETECTING  ──(stable 2s)──► PROCESSING
- *                 ▲                 |                            |
- *                 │          (face lost)                    (result)
- *                 │            returns                      /       \
- *                 └──────────── IDLE          AUTHORIZED    UNAUTHORIZED
- *                                               (3s)  ───────► IDLE
- *                                            UNAUTHORIZED
- *                                               (5s)  ───────► IDLE
+ *   STATE 1: WAITING_FOR_MOVEMENT
+ *       GPS watches position vs saved anchor.
+ *       distance >= 6m  ──────────────────────► STATE 2 (start camera + scan)
+ *
+ *   STATE 2: CAPTURING  (idle → detecting → processing → result)
+ *       Camera ON. Face detected, verified.
+ *       On result (auth or unauth) ───────────► STOP CAMERA → save location → STATE 3
+ *
+ *   STATE 3: COOLDOWN
+ *       Camera OFF. GPS re-anchors to capture location.
+ *       distance >= 10m from capture point ──► RESET → STATE 1
  *
  * APIs:
- *   GET  /api/driver/detect   → {face_present, confidence}
- *   POST /api/driver/verify   → {state, driver_name, similarity, event_id}
+ *   GET  /api/driver/detect        → {face_present, confidence}
+ *   POST /api/driver/verify        → {state, driver_name, similarity, event_id}
+ *   POST /api/location/update      → {state, lat, lon, distance_m}  (telemetry log)
  */
 
 (function () {
     'use strict';
 
     /* ── Timing & GPS constants ───────────────────────────────────── */
-    const DETECT_POLL_MS = 800;    // idle poll interval
-    const STABLE_MS = 2000;   // face must be present this long before verify
-    const AUTH_HOLD_MS = 3000;   // green result shown for
-    const DENY_HOLD_MS = 5000;   // red result shown for
-    const CLOCK_MS = 1000;   // clock refresh
-    const GPS_THRESHOLD_M = 6;    // Trip start trigger (coordinate-change based)
-    const REVERIFY_THRESHOLD_M = 5000; // 5km periodic trigger
-    const GPS_MIN_ACCURACY = 150; // Max accepted accuracy radius in metres
-    const MOVEMENT_CONFIRM_NEEDED = 2; // Consecutive readings above threshold before trigger
+    const DETECT_POLL_MS        = 800;   // idle poll interval (ms)
+    const STABLE_MS             = 2000;  // face must stay present before verify (ms)
+    const AUTH_HOLD_MS          = 3000;  // green result display duration (ms)
+    const DENY_HOLD_MS          = 5000;  // red result display duration (ms)
+    const CLOCK_MS              = 1000;  // clock refresh (ms)
+    const GPS_START_THRESHOLD_M = 6;     // STATE 1→2: movement trigger distance (metres)
+    const GPS_COOLDOWN_RESET_M  = 10;    // STATE 3→1: cooldown exit distance (metres)
+    const GPS_MIN_ACCURACY      = 150;   // max accepted accuracy radius (metres)
+    const GPS_MIN_SPEED_MS      = 0.5;   // 0.5 m/s ≈ 1.8 km/h — min speed to confirm movement
 
     /* ── DOM refs ─────────────────────────────────────────────────── */
     const body = document.body;
@@ -52,12 +56,12 @@
     let resetTimer = null;
     let checkStableTimer = null;
     let verifying = false;
-    let isStartingCamera = false;    // Lock to prevent multiple concurrent start requests
-    let prevPosition = null;         // Anchor for "Stationary" vs "Moving" HUD logic
-    let lastAuthPosition = null;     // Anchor for the 5km periodic check
+    let isStartingCamera = false;
+    let prevPosition = null;         // STATE 1 anchor: position when WAITING_FOR_MOVEMENT began
+    let capturePosition = null;      // STATE 3 anchor: position where capture happened
     let latestCoords = null;         // Cached latest high-accuracy coordinates
     let gpsWatchId = null;
-    let movementConfirmCount = 0;    // Consecutive coordinate readings above 6m threshold (noise guard)
+    let movementConfirmCount = 0;    // Consecutive readings above threshold (noise guard)
 
     /* ── Helpers ──────────────────────────────────────────────────── */
     function setState(s) {
@@ -65,18 +69,18 @@
         body.dataset.state = s;
         const labels = {
             waiting_movement: 'WAITING FOR MOVEMENT',
-            driving: 'TRIP IN PROGRESS',
-            idle: 'SCANNING',
-            detecting: 'FACE DETECTED',
-            processing: 'VERIFYING',
-            authorized: 'AUTHORIZED',
-            unauthorized: 'ACCESS DENIED',
+            idle:             'SCANNING',
+            detecting:        'FACE DETECTED',
+            processing:       'VERIFYING',
+            authorized:       'AUTHORIZED',
+            unauthorized:     'ACCESS DENIED',
+            cooldown:         'COOLDOWN — MOVE 10m TO RESET',
         };
         stateWord.textContent = labels[s] || s.toUpperCase();
     }
 
     function haversine(lat1, lon1, lat2, lon2) {
-        const R = 6371000; // Earth radius in meters
+        const R = 6371000;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -104,82 +108,71 @@
         console.log('[GPS] Starting high-accuracy watcher...');
 
         gpsWatchId = navigator.geolocation.watchPosition((pos) => {
-            const { latitude, longitude, accuracy } = pos.coords;
+            const { latitude, longitude, accuracy, speed } = pos.coords;
 
-            console.log(`[GPS] Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)} | Accuracy: ${accuracy.toFixed(1)}m`);
+            console.log(`[GPS] Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)} | Accuracy: ${accuracy.toFixed(1)}m | Speed: ${speed !== null ? speed.toFixed(2) + 'm/s' : 'n/a'}`);
 
-            // Requirement 8: Warn about low accuracy but continue (teammate's recommended fix)
             if (accuracy > GPS_MIN_ACCURACY) {
                 console.warn(`[GPS] Low accuracy (${accuracy.toFixed(1)}m > ${GPS_MIN_ACCURACY}m) but continuing...`);
-                gpsLabel.textContent = `WEAK SIGNAL (±${Math.round(accuracy)}m)`;
+                gpsLabel.textContent = `WEAK SIGNAL (+-${Math.round(accuracy)}m)`;
             }
 
-            // Cache for general use
             latestCoords = { lat: latitude, lon: longitude };
 
-            // Requirement 3: Store the first detected coordinate as starting position
-            if (!prevPosition) {
-                prevPosition = { lat: latitude, lon: longitude };
-                console.log(`[GPS] Starting position set: ${latitude}, ${longitude}`);
-                gpsLabel.textContent = 'SYSTEM ARMED - STATIONARY';
-                return;
-            }
-
-            // Requirement 4: Continuously compare with starting coordinates using Haversine
-            const distance = haversine(prevPosition.lat, prevPosition.lon, latitude, longitude);
-            
-            // Requirement 7: Log calculated distance
-            console.log(`[GPS] Distance from start: ${distance.toFixed(2)}m`);
-
-            // ─── LOGIC A: TRIP START (>=6m coordinate change) ───
+            // STATE 1: WAITING_FOR_MOVEMENT
             if (state === 'waiting_movement') {
-                if (distance >= GPS_THRESHOLD_M && accuracy < GPS_MIN_ACCURACY) {
-                    // Require MOVEMENT_CONFIRM_NEEDED consecutive readings all above the threshold
-                    // before triggering. A single GPS noise spike won't satisfy two readings in a row,
-                    // but real physical movement will keep the distance growing so all readings pass.
-                    movementConfirmCount++;
-                    console.log(`[GPS] Movement ${movementConfirmCount}/${MOVEMENT_CONFIRM_NEEDED}: ${distance.toFixed(1)}m`);
-                    gpsLabel.textContent = `CONFIRMING MOVEMENT (${movementConfirmCount}/${MOVEMENT_CONFIRM_NEEDED}): ${distance.toFixed(1)}m`;
 
-                    if (movementConfirmCount >= MOVEMENT_CONFIRM_NEEDED) {
+                if (!prevPosition) {
+                    prevPosition = { lat: latitude, lon: longitude };
+                    console.log(`[GPS] STATE1 anchor set: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+                    gpsLabel.textContent = 'ARMED — WAITING FOR MOVEMENT';
+                    postLocation('waiting_movement', latitude, longitude, 0);
+                    return;
+                }
+
+                const distance = haversine(prevPosition.lat, prevPosition.lon, latitude, longitude);
+                console.log(`[GPS] STATE1 distance from anchor: ${distance.toFixed(2)}m`);
+                gpsLabel.textContent = `ARMED: ${distance.toFixed(1)}m MOVED`;
+
+                if (distance >= GPS_START_THRESHOLD_M && accuracy < GPS_MIN_ACCURACY) {
+                    const speedAvailable = speed !== null && speed !== undefined;
+
+                    if (speedAvailable && speed >= GPS_MIN_SPEED_MS) {
                         movementConfirmCount = 0;
-                        console.log(`[GPS] TRIGGER: ${distance.toFixed(1)}m confirmed. Turning camera ON.`);
+                        console.log(`[GPS] STATE1->CAPTURE (speed confirmed): ${distance.toFixed(1)}m @ ${speed.toFixed(2)}m/s`);
                         gpsLabel.textContent = `MOVEMENT DETECTED: ${distance.toFixed(1)}m`;
                         gpsStatus.classList.add('moving');
+                        postLocation('movement_triggered', latitude, longitude, distance);
                         startIdle();
-                    }
-                } else {
-                    // Reading dropped below 6m — reset streak (noise spike, not real movement)
-                    if (movementConfirmCount > 0) {
-                        console.log(`[GPS] Streak reset. Distance ${distance.toFixed(1)}m < ${GPS_THRESHOLD_M}m`);
-                    }
-                    movementConfirmCount = 0;
-                    gpsLabel.textContent = `ARMED: ${distance.toFixed(1)}m MOVED`;
 
-                    // Re-anchor if coordinates have drifted far without a trigger.
-                    // Only re-anchor when confirmation streak is clean (count=0) so we
-                    // don't reset the anchor mid-count while the user is genuinely moving.
-                    if (distance > (GPS_THRESHOLD_M * 3) && accuracy < GPS_MIN_ACCURACY) {
-                        prevPosition = { lat: latitude, lon: longitude };
-                        console.log(`[GPS] Anchor reset (drift ${distance.toFixed(1)}m, no trigger).`);
+                    } else if (!speedAvailable) {
+                        movementConfirmCount++;
+                        console.log(`[GPS] STATE1 movement reading ${movementConfirmCount}/3: ${distance.toFixed(1)}m`);
+                        gpsLabel.textContent = `CONFIRMING MOVEMENT (${movementConfirmCount}/3): ${distance.toFixed(1)}m`;
+                        if (movementConfirmCount >= 3) {
+                            movementConfirmCount = 0;
+                            console.log(`[GPS] STATE1->CAPTURE (3x confirmed): ${distance.toFixed(1)}m`);
+                            gpsStatus.classList.add('moving');
+                            postLocation('movement_triggered', latitude, longitude, distance);
+                            startIdle();
+                        }
                     }
+
+                } else {
+                    movementConfirmCount = 0;
                 }
             }
 
-            // ─── LOGIC B: EN-ROUTE RE-VERIFY (5km) ───
-            else if (state === 'driving' && lastAuthPosition) {
-                const distSinceAuth = haversine(lastAuthPosition.lat, lastAuthPosition.lon, latitude, longitude);
-                const km = (distSinceAuth / 1000).toFixed(2);
-                
-                if (distSinceAuth >= REVERIFY_THRESHOLD_M) {
-                    console.log(`[GPS] 5km Threshold Reached: ${km}km. RE-VERIFYING.`);
-                    gpsLabel.textContent = `RE-VERIFYING (${km}km)`;
-                    gpsStatus.classList.add('moving');
-                    startIdle(); 
-                } else {
-                    const remaining = ((REVERIFY_THRESHOLD_M - distSinceAuth) / 1000).toFixed(1);
-                    gpsLabel.textContent = `DRIVING (${km}km) • NEXT: ${remaining}km`;
-                    gpsStatus.classList.remove('moving');
+            // STATE 3: COOLDOWN
+            else if (state === 'cooldown' && capturePosition) {
+                const distFromCapture = haversine(capturePosition.lat, capturePosition.lon, latitude, longitude);
+                console.log(`[GPS] STATE3 distance from capture: ${distFromCapture.toFixed(2)}m`);
+                gpsLabel.textContent = `COOLDOWN: ${distFromCapture.toFixed(1)}m / ${GPS_COOLDOWN_RESET_M}m`;
+
+                if (distFromCapture >= GPS_COOLDOWN_RESET_M) {
+                    console.log(`[GPS] STATE3->STATE1: ${distFromCapture.toFixed(1)}m >= ${GPS_COOLDOWN_RESET_M}m — resetting`);
+                    postLocation('cooldown_reset', latitude, longitude, distFromCapture);
+                    startMovementWait();
                 }
             }
 
@@ -190,6 +183,14 @@
         }, options);
     }
 
+    /* ── Telemetry: POST location update to backend ─────────────── */
+    function postLocation(eventState, lat, lon, distance_m) {
+        fetch('/api/location/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ state: eventState, lat, lon, distance_m: Math.round(distance_m * 10) / 10 })
+        }).catch(() => {});
+    }
 
     function clearReset() {
         if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
@@ -213,16 +214,16 @@
         setTimeout(tickClock, CLOCK_MS);
     }());
 
-    /* ── Animate a timer bar draining from 100% → 0% ── */
+    /* ── Animate a timer bar draining from 100% -> 0% ── */
     function animateTimer(el, durationMs) {
         el.style.transition = 'none';
         el.style.transform = 'scaleX(1)';
-        void el.offsetWidth; // force reflow
+        void el.offsetWidth;
         el.style.transition = `transform ${durationMs}ms linear`;
         el.style.transform = 'scaleX(0)';
     }
 
-    /* ── Animate the countdown bar filling 0% → 100% ── */
+    /* ── Animate the countdown bar filling 0% -> 100% ── */
     function animateCountdown(durationMs) {
         countBar.style.transition = 'none';
         countBar.style.width = '0%';
@@ -231,7 +232,7 @@
         countBar.style.width = '100%';
     }
 
-    /* ── Movement Wait: Initial state ──────────────────────────── */
+    /* ── STATE 1: WAITING_FOR_MOVEMENT ─────────────────────────── */
     function startMovementWait() {
         if (state === 'waiting_movement') return;
         setState('waiting_movement');
@@ -239,17 +240,22 @@
         stopPoll();
         clearStable();
         clearReset();
-        
-        // Reset anchors and movement counter for a fresh trip cycle
+
         prevPosition = null;
-        lastAuthPosition = null;
+        capturePosition = null;
         movementConfirmCount = 0;
+        gpsStatus.classList.remove('moving');
+
+        const videoFeed = document.getElementById('videoFeed');
+        if (videoFeed && !videoFeed.src && videoFeed._originalSrc) {
+            videoFeed.src = videoFeed._originalSrc;
+        }
 
         if (gpsWatchId === null) {
             initGPS();
         }
 
-        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
+        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => {});
     }
 
     /* ── IDLE: poll for a face ──────────────────────────────────── */
@@ -261,13 +267,11 @@
         clearStable();
         clearReset();
 
-        // Ensure moving effect is off when we arrive at scanning UI
         gpsStatus.classList.remove('moving');
 
         async function poll() {
             if (state !== 'idle' || pollTimer === null) return;
 
-            // KIOSK MODE: Only check visibility, ignore focus as drivers don't click terminals.
             if (document.visibilityState !== 'visible') {
                 pollTimer = setTimeout(poll, DETECT_POLL_MS);
                 return;
@@ -277,13 +281,11 @@
                 const res = await fetch('/api/driver/detect');
                 const data = await res.json();
 
-                // If the backend says camera is OFF, wake it up!
                 if (data.camera_off) {
                     if (!isStartingCamera) {
                         isStartingCamera = true;
                         try {
-                            const startRes = await fetch('/api/driver/camera/start', { method: 'POST' });
-                            const startData = await startRes.json();
+                            await fetch('/api/driver/camera/start', { method: 'POST' });
                         } finally {
                             isStartingCamera = false;
                         }
@@ -296,8 +298,7 @@
                     onFaceDetected();
                     return;
                 }
-            } catch (e) {
-            }
+            } catch (e) {}
             pollTimer = setTimeout(poll, DETECT_POLL_MS);
         }
 
@@ -326,7 +327,7 @@
                 } else {
                     lostCount = 0;
                 }
-            } catch (e) { }
+            } catch (e) {}
         }, 400);
 
         stableTimer = setTimeout(() => {
@@ -351,13 +352,11 @@
             } else if (data.state === 'unauthorized') {
                 showUnauthorized(data);
             } else {
-                // no_face or unexpected state — one attempt was made; shut camera off
-                fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
+                fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => {});
                 startMovementWait();
             }
         } catch (e) {
-            // Network failure — shut camera off rather than leaving it running
-            fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
+            fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => {});
             startMovementWait();
         }
     }
@@ -368,39 +367,52 @@
         driverName.textContent = data.driver_name ? `Welcome, ${data.driver_name}` : 'Driver Identified';
         authMeta.textContent = data.similarity ? `Match confidence: ${(data.similarity * 100).toFixed(1)}%` : '';
 
-        // Capture the coordinates where verification succeeded (using cached stream)
         if (latestCoords) {
-            lastAuthPosition = { ...latestCoords };
+            capturePosition = { ...latestCoords };
+            postLocation('capture_authorized', capturePosition.lat, capturePosition.lon, 0);
         }
 
         animateTimer(authTimer, AUTH_HOLD_MS);
-        resetTimer = setTimeout(startDrivingMode, AUTH_HOLD_MS); 
+        resetTimer = setTimeout(startCooldown, AUTH_HOLD_MS);
     }
 
-    /* ── DRIVING Mode: Trip is in progress, camera OFF ─────── */
-    function startDrivingMode() {
-        setState('driving');
+    /* ── STATE 3: COOLDOWN ──────────────────────────────────────── */
+    function startCooldown() {
+        setState('cooldown');
         verifying = false;
         stopPoll();
         clearStable();
         clearReset();
 
-        // Security/Privacy: Shut down the camera hardware
-        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
-        
-        console.log('[driver] Driver Authorized. Entering monitoring mode (5km threshold).');
+        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => {});
+
+        const videoFeed = document.getElementById('videoFeed');
+        if (videoFeed) {
+            videoFeed._originalSrc = videoFeed.src;
+            videoFeed.src = '';
+        }
+
+        console.log('[driver] STATE3: COOLDOWN. Screen OFF. Camera OFF. Move 10m to reset.');
+        gpsLabel.textContent = `COOLDOWN: 0m / ${GPS_COOLDOWN_RESET_M}m`;
+    }
+
+    /* ── DRIVING Mode (kept for compatibility, redirects to cooldown) */
+    function startDrivingMode() {
+        startCooldown();
     }
 
     /* ── UNAUTHORIZED result ────────────────────────────────────── */
     function showUnauthorized(data) {
         setState('unauthorized');
-        if (data.status_message) {
-            deniedReason.textContent = data.status_message;
-        } else {
-            deniedReason.textContent = 'Unauthorized access attempt';
+        deniedReason.textContent = data.status_message || 'Unauthorized access attempt';
+
+        if (latestCoords) {
+            capturePosition = { ...latestCoords };
+            postLocation('capture_unauthorized', capturePosition.lat, capturePosition.lon, 0);
         }
+
         animateTimer(deniedTimer, DENY_HOLD_MS);
-        resetTimer = setTimeout(startMovementWait, DENY_HOLD_MS); // Go back to waiting for next movement
+        resetTimer = setTimeout(startCooldown, DENY_HOLD_MS);
     }
 
     /* ── Boot ───────────────────────────────────────────────────── */
@@ -409,7 +421,6 @@
             if (gpsWatchId === null) {
                 initGPS();
             }
-            // Only force arm if we are in the initial boot state
             if (state === 'boot') {
                 startMovementWait();
             }
@@ -419,7 +430,6 @@
         }
     }
 
-    // Run once on load
     checkAndStart();
 
     document.addEventListener('visibilitychange', checkAndStart);

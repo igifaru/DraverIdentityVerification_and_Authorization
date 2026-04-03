@@ -30,8 +30,8 @@
     const AUTH_HOLD_MS          = 3000;  // green result display duration (ms)
     const DENY_HOLD_MS          = 5000;  // red result display duration (ms)
     const CLOCK_MS              = 1000;  // clock refresh (ms)
-    const GPS_START_THRESHOLD_M = 6;     // STATE 1→2: movement trigger distance (metres)
-    const GPS_COOLDOWN_RESET_M  = 10;    // STATE 3→1: cooldown exit distance (metres)
+    const GPS_START_THRESHOLD_M = 3;     // STATE 1→2: movement trigger distance (metres)
+    const GPS_COOLDOWN_RESET_M  = 5;    // STATE 3→1: cooldown exit distance (metres)
     const GPS_MIN_ACCURACY      = 150;   // max accepted accuracy radius (metres)
     const GPS_MIN_SPEED_MS      = 0.5;   // 0.5 m/s ≈ 1.8 km/h — min speed to confirm movement
 
@@ -139,36 +139,26 @@
                 console.log(`[GPS] STATE1 distance from anchor: ${distance.toFixed(2)}m`);
                 gpsLabel.textContent = `ARMED: ${distance.toFixed(1)}m MOVED`;
 
-                if (distance >= GPS_START_THRESHOLD_M && accuracy < GPS_MIN_ACCURACY) {
-                    const speedAvailable = speed !== null && speed !== undefined;
+                // ✅ FIX 4: tolerance buffer (-1m)
+if (distance >= (GPS_START_THRESHOLD_M - 1)) {
 
-                    if (speedAvailable && speed >= GPS_MIN_SPEED_MS) {
-                        // Speed sensor confirms real movement — trigger immediately
-                        movementConfirmCount = 0;
-                        console.log(`[GPS] STATE1→CAPTURE (speed confirmed): ${distance.toFixed(1)}m @ ${speed.toFixed(2)}m/s`);
-                        gpsLabel.textContent = `MOVEMENT DETECTED: ${distance.toFixed(1)}m`;
-                        gpsStatus.classList.add('moving');
-                        postLocation('movement_triggered', latitude, longitude, distance);
-                        startIdle();
+    // ✅ FIX 3: remove speed dependency
+    movementConfirmCount++;
+    console.log(`[GPS] STATE1 movement reading ${movementConfirmCount}: ${distance.toFixed(1)}m`);
 
-                    } else if (!speedAvailable) {
-                        // No speed sensor — require 3 consecutive readings above threshold
-                        movementConfirmCount++;
-                        console.log(`[GPS] STATE1 movement reading ${movementConfirmCount}/3: ${distance.toFixed(1)}m`);
-                        gpsLabel.textContent = `CONFIRMING MOVEMENT (${movementConfirmCount}/3): ${distance.toFixed(1)}m`;
-                        if (movementConfirmCount >= 3) {
-                            movementConfirmCount = 0;
-                            console.log(`[GPS] STATE1→CAPTURE (3× confirmed): ${distance.toFixed(1)}m`);
-                            gpsStatus.classList.add('moving');
-                            postLocation('movement_triggered', latitude, longitude, distance);
-                            startIdle();
-                        }
-                    }
-                    // Speed available but below threshold → GPS noise, ignore
+    if (movementConfirmCount >= 2) {
+        movementConfirmCount = 0;
+        console.log(`[GPS] STATE1→CAPTURE: ${distance.toFixed(1)}m`);
+        gpsLabel.textContent = `MOVEMENT DETECTED: ${distance.toFixed(1)}m`;
+        gpsStatus.classList.add('moving');
+        postLocation('movement_triggered', latitude, longitude, distance);
+        startIdle();
+    }
 
-                } else {
-                    movementConfirmCount = 0;
-                }
+} else {
+    // ✅ FIX 2: decay instead of reset
+    movementConfirmCount = Math.max(0, movementConfirmCount - 1);
+}
             }
 
             // ─────────────────────────────────────────────────────────────
@@ -180,34 +170,25 @@
                 console.log(`[GPS] STATE3 distance from capture: ${distFromCapture.toFixed(2)}m`);
                 gpsLabel.textContent = `COOLDOWN: ${distFromCapture.toFixed(1)}m / ${GPS_COOLDOWN_RESET_M}m`;
 
-                if (distFromCapture >= GPS_COOLDOWN_RESET_M) {
-                    const speedAvailable = speed !== null && speed !== undefined;
+                // ✅ FIX 4: tolerance buffer
+if (distFromCapture >= (GPS_COOLDOWN_RESET_M - 1)) {
 
-                    if (speedAvailable && speed >= GPS_MIN_SPEED_MS) {
-                        // Speed confirms real movement - reset immediately
-                        cooldownConfirmCount = 0;
-                        console.log(`[GPS] STATE3->STATE1 (speed confirmed): ${distFromCapture.toFixed(1)}m`);
-                        postLocation('cooldown_reset', latitude, longitude, distFromCapture);
-                        startMovementWait();
+    // ✅ FIX 3: remove speed dependency
+    cooldownConfirmCount++;
+    console.log(`[GPS] STATE3 reset reading ${cooldownConfirmCount}: ${distFromCapture.toFixed(1)}m`);
+    gpsLabel.textContent = `COOLDOWN: ${distFromCapture.toFixed(1)}m`;
 
-                    } else if (!speedAvailable) {
-                        // No speed sensor - require 3 consecutive readings above 10m
-                        cooldownConfirmCount++;
-                        console.log(`[GPS] STATE3 reset reading ${cooldownConfirmCount}/3: ${distFromCapture.toFixed(1)}m`);
-                        gpsLabel.textContent = `COOLDOWN: confirming reset (${cooldownConfirmCount}/3)`;
-                        if (cooldownConfirmCount >= 3) {
-                            cooldownConfirmCount = 0;
-                            console.log(`[GPS] STATE3->STATE1 (3x confirmed): ${distFromCapture.toFixed(1)}m`);
-                            postLocation('cooldown_reset', latitude, longitude, distFromCapture);
-                            startMovementWait();
-                        }
-                    }
-                    // Speed available but below threshold - GPS drift noise, ignore
+    if (cooldownConfirmCount >= 2) {
+        cooldownConfirmCount = 0;
+        console.log(`[GPS] STATE3->STATE1: ${distFromCapture.toFixed(1)}m`);
+        postLocation('cooldown_reset', latitude, longitude, distFromCapture);
+        startMovementWait();
+    }
 
-                } else {
-                    // Distance dropped back below 10m - reset confirmation streak
-                    cooldownConfirmCount = 0;
-                }
+} else {
+    // ✅ FIX 2: decay instead of reset
+    cooldownConfirmCount = Math.max(0, cooldownConfirmCount - 1);
+}
             }
 
         }, (err) => {

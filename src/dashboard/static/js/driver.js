@@ -56,12 +56,13 @@
     let resetTimer = null;
     let checkStableTimer = null;
     let verifying = false;
-    let isStartingCamera = false;
+    let isStartingCamera = false;    // Lock to prevent multiple concurrent start requests
     let prevPosition = null;         // STATE 1 anchor: position when WAITING_FOR_MOVEMENT began
     let capturePosition = null;      // STATE 3 anchor: position where capture happened
     let latestCoords = null;         // Cached latest high-accuracy coordinates
     let gpsWatchId = null;
-    let movementConfirmCount = 0;    // Consecutive readings above threshold (noise guard)
+    let movementConfirmCount = 0;    // Consecutive readings above threshold (noise guard - STATE 1)
+    let cooldownConfirmCount = 0;     // Consecutive readings above 10m threshold (noise guard - STATE 3)
 
     /* ── Helpers ──────────────────────────────────────────────────── */
     function setState(s) {
@@ -80,7 +81,7 @@
     }
 
     function haversine(lat1, lon1, lat2, lon2) {
-        const R = 6371000;
+        const R = 6371000; // Earth radius in meters
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -114,12 +115,16 @@
 
             if (accuracy > GPS_MIN_ACCURACY) {
                 console.warn(`[GPS] Low accuracy (${accuracy.toFixed(1)}m > ${GPS_MIN_ACCURACY}m) but continuing...`);
-                gpsLabel.textContent = `WEAK SIGNAL (+-${Math.round(accuracy)}m)`;
+                gpsLabel.textContent = `WEAK SIGNAL (±${Math.round(accuracy)}m)`;
             }
 
+            // Always cache latest coords
             latestCoords = { lat: latitude, lon: longitude };
 
+            // ─────────────────────────────────────────────────────────────
             // STATE 1: WAITING_FOR_MOVEMENT
+            //   Anchor set on first fix. Trigger camera when >= 6m moved.
+            // ─────────────────────────────────────────────────────────────
             if (state === 'waiting_movement') {
 
                 if (!prevPosition) {
@@ -138,57 +143,70 @@
                     const speedAvailable = speed !== null && speed !== undefined;
 
                     if (speedAvailable && speed >= GPS_MIN_SPEED_MS) {
-                        // ── Case 1: speed sensor confirms vehicle is moving → trigger immediately
+                        // Speed sensor confirms real movement — trigger immediately
                         movementConfirmCount = 0;
-                        console.log(`[GPS] TRIGGER (speed): ${distance.toFixed(1)}m @ ${speed.toFixed(2)}m/s`);
+                        console.log(`[GPS] STATE1→CAPTURE (speed confirmed): ${distance.toFixed(1)}m @ ${speed.toFixed(2)}m/s`);
                         gpsLabel.textContent = `MOVEMENT DETECTED: ${distance.toFixed(1)}m`;
                         gpsStatus.classList.add('moving');
                         postLocation('movement_triggered', latitude, longitude, distance);
                         startIdle();
 
                     } else if (!speedAvailable) {
-                        // ── Case 2: no speed sensor (laptop / WiFi positioning) — GPS noise can
-                        //    easily drift 6-15m while stationary, so require 3 CONSECUTIVE readings
-                        //    all above the threshold before trusting the distance.
+                        // No speed sensor — require 3 consecutive readings above threshold
                         movementConfirmCount++;
                         console.log(`[GPS] STATE1 movement reading ${movementConfirmCount}/3: ${distance.toFixed(1)}m`);
                         gpsLabel.textContent = `CONFIRMING MOVEMENT (${movementConfirmCount}/3): ${distance.toFixed(1)}m`;
                         if (movementConfirmCount >= 3) {
                             movementConfirmCount = 0;
-                            console.log(`[GPS] TRIGGER (3× confirmed): ${distance.toFixed(1)}m`);
+                            console.log(`[GPS] STATE1→CAPTURE (3× confirmed): ${distance.toFixed(1)}m`);
                             gpsStatus.classList.add('moving');
                             postLocation('movement_triggered', latitude, longitude, distance);
                             startIdle();
                         }
                     }
-                    // ── Case 3: speed available but below threshold → device confirms stationary,
-                    //    distance reading is pure GPS noise — do nothing, don't trigger.
+                    // Speed available but below threshold → GPS noise, ignore
 
                 } else {
                     movementConfirmCount = 0;
-                    gpsLabel.textContent = `ARMED: ${distance.toFixed(1)}m MOVED`;
-                    // Re-anchor on large noise drift only when speed confirms stationary
-                    const speedConfirmsStationary = !speedAvailable || speed < GPS_MIN_SPEED_MS;
-                    if (distance > (GPS_THRESHOLD_M * 3) && accuracy < GPS_MIN_ACCURACY && speedConfirmsStationary) {
-                        prevPosition = { lat: latitude, lon: longitude };
-                    }
                 }
             }
 
-            // ─── LOGIC B: EN-ROUTE RE-VERIFY (5km) ───
-            else if (state === 'driving' && lastAuthPosition) {
-                const distSinceAuth = haversine(lastAuthPosition.lat, lastAuthPosition.lon, latitude, longitude);
-                const km = (distSinceAuth / 1000).toFixed(2);
-                
-                if (distSinceAuth >= REVERIFY_THRESHOLD_M) {
-                    console.log(`[GPS] 5km Threshold Reached: ${km}km. RE-VERIFYING.`);
-                    gpsLabel.textContent = `RE-VERIFYING (${km}km)`;
-                    gpsStatus.classList.add('moving');
-                    startIdle(); 
+            // ─────────────────────────────────────────────────────────────
+            // STATE 3: COOLDOWN
+            //   Anchor = capture location. Reset to STATE 1 when >= 10m moved.
+            // ─────────────────────────────────────────────────────────────
+            else if (state === 'cooldown' && capturePosition) {
+                const distFromCapture = haversine(capturePosition.lat, capturePosition.lon, latitude, longitude);
+                console.log(`[GPS] STATE3 distance from capture: ${distFromCapture.toFixed(2)}m`);
+                gpsLabel.textContent = `COOLDOWN: ${distFromCapture.toFixed(1)}m / ${GPS_COOLDOWN_RESET_M}m`;
+
+                if (distFromCapture >= GPS_COOLDOWN_RESET_M) {
+                    const speedAvailable = speed !== null && speed !== undefined;
+
+                    if (speedAvailable && speed >= GPS_MIN_SPEED_MS) {
+                        // Speed confirms real movement - reset immediately
+                        cooldownConfirmCount = 0;
+                        console.log(`[GPS] STATE3->STATE1 (speed confirmed): ${distFromCapture.toFixed(1)}m`);
+                        postLocation('cooldown_reset', latitude, longitude, distFromCapture);
+                        startMovementWait();
+
+                    } else if (!speedAvailable) {
+                        // No speed sensor - require 3 consecutive readings above 10m
+                        cooldownConfirmCount++;
+                        console.log(`[GPS] STATE3 reset reading ${cooldownConfirmCount}/3: ${distFromCapture.toFixed(1)}m`);
+                        gpsLabel.textContent = `COOLDOWN: confirming reset (${cooldownConfirmCount}/3)`;
+                        if (cooldownConfirmCount >= 3) {
+                            cooldownConfirmCount = 0;
+                            console.log(`[GPS] STATE3->STATE1 (3x confirmed): ${distFromCapture.toFixed(1)}m`);
+                            postLocation('cooldown_reset', latitude, longitude, distFromCapture);
+                            startMovementWait();
+                        }
+                    }
+                    // Speed available but below threshold - GPS drift noise, ignore
+
                 } else {
-                    const remaining = ((REVERIFY_THRESHOLD_M - distSinceAuth) / 1000).toFixed(1);
-                    gpsLabel.textContent = `DRIVING (${km}km) • NEXT: ${remaining}km`;
-                    gpsStatus.classList.remove('moving');
+                    // Distance dropped back below 10m - reset confirmation streak
+                    cooldownConfirmCount = 0;
                 }
             }
 
@@ -205,8 +223,9 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ state: eventState, lat, lon, distance_m: Math.round(distance_m * 10) / 10 })
-        }).catch(() => {});
+        }).catch(() => { /* fire-and-forget */ });
     }
+
 
     function clearReset() {
         if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
@@ -230,16 +249,16 @@
         setTimeout(tickClock, CLOCK_MS);
     }());
 
-    /* ── Animate a timer bar draining from 100% -> 0% ── */
+    /* ── Animate a timer bar draining from 100% → 0% ── */
     function animateTimer(el, durationMs) {
         el.style.transition = 'none';
         el.style.transform = 'scaleX(1)';
-        void el.offsetWidth;
+        void el.offsetWidth; // force reflow
         el.style.transition = `transform ${durationMs}ms linear`;
         el.style.transform = 'scaleX(0)';
     }
 
-    /* ── Animate the countdown bar filling 0% -> 100% ── */
+    /* ── Animate the countdown bar filling 0% → 100% ── */
     function animateCountdown(durationMs) {
         countBar.style.transition = 'none';
         countBar.style.width = '0%';
@@ -257,11 +276,14 @@
         clearStable();
         clearReset();
 
+        // Fresh trip cycle — reset all anchors and counters
         prevPosition = null;
         capturePosition = null;
         movementConfirmCount = 0;
+        cooldownConfirmCount = 0;
         gpsStatus.classList.remove('moving');
 
+        // Restore video feed src if it was blanked during cooldown
         const videoFeed = document.getElementById('videoFeed');
         if (videoFeed && !videoFeed.src && videoFeed._originalSrc) {
             videoFeed.src = videoFeed._originalSrc;
@@ -271,7 +293,7 @@
             initGPS();
         }
 
-        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => {});
+        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
     }
 
     /* ── IDLE: poll for a face ──────────────────────────────────── */
@@ -283,11 +305,13 @@
         clearStable();
         clearReset();
 
+        // Ensure moving effect is off when we arrive at scanning UI
         gpsStatus.classList.remove('moving');
 
         async function poll() {
             if (state !== 'idle' || pollTimer === null) return;
 
+            // KIOSK MODE: Only check visibility, ignore focus as drivers don't click terminals.
             if (document.visibilityState !== 'visible') {
                 pollTimer = setTimeout(poll, DETECT_POLL_MS);
                 return;
@@ -297,11 +321,13 @@
                 const res = await fetch('/api/driver/detect');
                 const data = await res.json();
 
+                // If the backend says camera is OFF, wake it up!
                 if (data.camera_off) {
                     if (!isStartingCamera) {
                         isStartingCamera = true;
                         try {
-                            await fetch('/api/driver/camera/start', { method: 'POST' });
+                            const startRes = await fetch('/api/driver/camera/start', { method: 'POST' });
+                            const startData = await startRes.json();
                         } finally {
                             isStartingCamera = false;
                         }
@@ -314,7 +340,8 @@
                     onFaceDetected();
                     return;
                 }
-            } catch (e) {}
+            } catch (e) {
+            }
             pollTimer = setTimeout(poll, DETECT_POLL_MS);
         }
 
@@ -343,7 +370,7 @@
                 } else {
                     lostCount = 0;
                 }
-            } catch (e) {}
+            } catch (e) { }
         }, 400);
 
         stableTimer = setTimeout(() => {
@@ -368,11 +395,13 @@
             } else if (data.state === 'unauthorized') {
                 showUnauthorized(data);
             } else {
-                fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => {});
+                // no_face or unexpected state — one attempt was made; shut camera off
+                fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
                 startMovementWait();
             }
         } catch (e) {
-            fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => {});
+            // Network failure — shut camera off rather than leaving it running
+            fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
             startMovementWait();
         }
     }
@@ -383,6 +412,7 @@
         driverName.textContent = data.driver_name ? `Welcome, ${data.driver_name}` : 'Driver Identified';
         authMeta.textContent = data.similarity ? `Match confidence: ${(data.similarity * 100).toFixed(1)}%` : '';
 
+        // Save capture location as the cooldown anchor
         if (latestCoords) {
             capturePosition = { ...latestCoords };
             postLocation('capture_authorized', capturePosition.lat, capturePosition.lon, 0);
@@ -400,14 +430,18 @@
         clearStable();
         clearReset();
 
-        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => {});
+        // Stop the camera backend stream
+        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
 
+        // Blank the video feed element so no stale frame shows through
+        // (CSS sets display:none but clearing src ensures no cached frame leaks)
         const videoFeed = document.getElementById('videoFeed');
         if (videoFeed) {
             videoFeed._originalSrc = videoFeed.src;
             videoFeed.src = '';
         }
 
+        cooldownConfirmCount = 0;  // Fresh cooldown cycle
         console.log('[driver] STATE3: COOLDOWN. Screen OFF. Camera OFF. Move 10m to reset.');
         gpsLabel.textContent = `COOLDOWN: 0m / ${GPS_COOLDOWN_RESET_M}m`;
     }
@@ -420,8 +454,13 @@
     /* ── UNAUTHORIZED result ────────────────────────────────────── */
     function showUnauthorized(data) {
         setState('unauthorized');
-        deniedReason.textContent = data.status_message || 'Unauthorized access attempt';
+        if (data.status_message) {
+            deniedReason.textContent = data.status_message;
+        } else {
+            deniedReason.textContent = 'Unauthorized access attempt';
+        }
 
+        // Save capture location even on denial — cooldown still applies
         if (latestCoords) {
             capturePosition = { ...latestCoords };
             postLocation('capture_unauthorized', capturePosition.lat, capturePosition.lon, 0);
@@ -437,6 +476,7 @@
             if (gpsWatchId === null) {
                 initGPS();
             }
+            // Only force arm if we are in the initial boot state
             if (state === 'boot') {
                 startMovementWait();
             }
@@ -446,6 +486,7 @@
         }
     }
 
+    // Run once on load
     checkAndStart();
 
     document.addEventListener('visibilitychange', checkAndStart);

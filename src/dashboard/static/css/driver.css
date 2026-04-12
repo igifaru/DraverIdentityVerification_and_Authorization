@@ -55,6 +55,36 @@ body[data-state="unauthorized"] #videoFeed {
     filter: blur(8px) brightness(0.4);
 }
 
+/* Show live feed during waiting_movement so driver can position themselves */
+body[data-state="waiting_movement"] #videoFeed {
+    filter: brightness(0.6);
+    display: block;
+}
+
+/* Show live feed during waiting_movement so driver can position themselves */
+body[data-state="waiting_movement"] #videoFeed {
+    filter: brightness(0.6);
+    display: block;
+}
+
+/* Show live feed during waiting_movement so driver can position themselves */
+body[data-state="waiting_movement"] #videoFeed {
+    filter: brightness(0.6);
+    display: block;
+}
+
+/* Show live feed during waiting_movement so driver can position themselves */
+body[data-state="waiting_movement"] #videoFeed {
+    filter: brightness(0.6);
+    display: block;
+}
+
+/* Show live feed during waiting_movement so driver can position themselves */
+body[data-state="waiting_movement"] #videoFeed {
+    filter: brightness(0.6);
+    display: block;
+}
+
 /* ================================================================
    LAYER 2 — Face guide (visible ONLY in idle + detecting)
    ================================================================ */
@@ -886,4 +916,129 @@ body[data-state="cooldown"] .state-led {
 /* Amber state word */
 body[data-state="cooldown"] .state-word {
     color: #f4a100;
+}
+
+@media (max-width: 900px) {
+    .hud-header {
+        padding: 12px 16px;
+    }
+
+    .hud-right {
+        gap: 10px;
+    }
+
+    .gps-status {
+        max-width: 52vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .detecting-ring {
+        width: min(48vw, 240px);
+        height: min(60vw, 300px);
+    }
+
+    .countdown-track {
+        width: min(60vw, 260px);
+    }
+
+    .result-card {
+        padding: 38px 28px;
+        width: min(92vw, 540px);
+    }
+}
+
+@media (max-width: 640px) {
+    .hud-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .hud-right {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+
+    .gps-status {
+        max-width: 100%;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .hud-title {
+        letter-spacing: 2px;
+    }
+
+    .state-word {
+        min-width: 0;
+        text-align: left;
+    }
+
+    .guide-hint,
+    .processing-label,
+    .detecting-label {
+        letter-spacing: 2px;
+        text-align: center;
+        padding: 0 20px;
+    }
+
+    .result-card {
+        padding: 28px 20px;
+        border-radius: 16px;
+    }
+
+    .result-headline {
+        letter-spacing: 3px;
+    }
+
+    .result-meta,
+    .alert-note,
+    .result-sub {
+        font-size: 0.82rem;
+        letter-spacing: 1px;
+    }
+
+    .auth-icon svg,
+    .denied-icon svg {
+        width: 68px;
+        height: 68px;
+    }
+
+    .hud-footer {
+        padding: 10px 12px;
+        flex-wrap: wrap;
+        row-gap: 4px;
+        text-align: center;
+        letter-spacing: 2px;
+    }
+
+    .hud-footer .sep {
+        margin: 0 8px;
+    }
+}
+
+@media (max-width: 420px) {
+    .detecting-ring {
+        width: 58vw;
+        height: 74vw;
+        max-height: 260px;
+    }
+
+    .bracket {
+        width: 20px;
+        height: 20px;
+    }
+
+    .guide-hint {
+        bottom: calc(50% - 35%);
+        font-size: 0.54rem;
+    }
+
+    .radar-pulse {
+        width: 62px;
+        height: 62px;
+    }
 }

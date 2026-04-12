@@ -1740,3 +1740,213 @@ nav.sidebar-nav {
     color: var(--text);
     font-family: var(--font-mono);
 }
+
+/* ================================================================
+   RESPONSIVE LAYOUT
+   ================================================================ */
+@media (max-width: 1180px) {
+    body {
+        display: block;
+        min-height: 100vh;
+        height: auto;
+        overflow: auto;
+    }
+
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-header {
+        padding: 18px 20px 14px;
+    }
+
+    nav.sidebar-nav {
+        padding: 0 16px 14px;
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .nav-section-label {
+        display: none;
+    }
+
+    .nav-item {
+        width: auto;
+        min-width: max-content;
+        margin-bottom: 0;
+        flex-shrink: 0;
+    }
+
+    .sidebar-footer {
+        display: none;
+    }
+
+    .main-stage {
+        min-height: 0;
+    }
+
+    .ops-split-grid,
+    .enroll-grid,
+    .incident-detail-grid,
+    .detail-grid,
+    .form-two-col {
+        grid-template-columns: 1fr !important;
+    }
+
+    .page-header-row,
+    .panel-head {
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-start !important;
+    }
+
+    .incident-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    .intel-grid {
+        flex-wrap: wrap;
+        justify-content: flex-start !important;
+        gap: 16px;
+    }
+
+    .intel-grid>div[style*="height:32px"] {
+        display: none;
+    }
+
+    .panel .data-table {
+        display: block;
+        overflow-x: auto;
+        min-width: 760px;
+        white-space: nowrap;
+    }
+
+    .drawer-content {
+        width: min(420px, 92vw);
+    }
+}
+
+@media (max-width: 768px) {
+    html {
+        font-size: 13px;
+    }
+
+    .top-bar {
+        height: auto;
+        padding: 14px 16px;
+        align-items: flex-start;
+        gap: 12px;
+        flex-direction: column;
+    }
+
+    .top-bar-right {
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .notifications-dropdown {
+        width: min(92vw, 420px);
+        right: auto;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .scroll-area {
+        padding: 16px;
+    }
+
+    .panel,
+    .modal-box {
+        padding: 18px;
+    }
+
+    .metric-card,
+    .summary-card {
+        padding: 16px;
+    }
+
+    .metric-value,
+    .card-value {
+        font-size: 1.7rem;
+    }
+
+    .incident-filter-grid,
+    .summary-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    #toastContainer {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+    }
+
+    .toast,
+    .toast.toast-incident-card {
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+    }
+
+    .audit-item {
+        flex-direction: column;
+    }
+
+    .audit-time {
+        white-space: normal;
+    }
+
+    .modal-footer {
+        flex-direction: column-reverse;
+    }
+
+    .modal-footer .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .drawer-content {
+        width: 100vw;
+        right: -100vw;
+    }
+
+    .incident-photo-well {
+        max-width: 240px;
+    }
+}
+
+@media (max-width: 520px) {
+    .brand {
+        letter-spacing: 4px;
+        font-size: 1rem;
+    }
+
+    .top-bar-right {
+        align-items: stretch;
+    }
+
+    .btn-signout {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+
+    .sys-chip {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .capture-frame {
+        aspect-ratio: 1 / 1;
+    }
+
+    .table-empty {
+        padding: 24px 16px;
+    }
+}

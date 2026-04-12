@@ -111,7 +111,7 @@ async function fetchDashboard() {
 
     try {
         // Engine status
-        const statusRes = await fetch('/api/status');
+        const statusRes = await fetch( '/api/status');
         if (statusRes.ok) {
             const statusData = await statusRes.json();
             setChip(statusData.system_status);
@@ -121,7 +121,7 @@ async function fetchDashboard() {
         }
 
         // All drivers data
-        const res = await fetch('/api/drivers');
+        const res = await fetch( '/api/drivers');
         if (!res.ok) return;
         const drivers = await res.json();
 
@@ -311,7 +311,7 @@ function filterAuditLogs() {
 async function deleteAuditLog(auditId) {
     if (!confirm('Delete this log entry? This cannot be undone.')) return;
     try {
-        const res = await fetch('/api/audit/' + auditId, { method: 'DELETE' });
+        const res = await fetch( '/api/audit/' + auditId, { method: 'DELETE' });
         const data = await res.json();
         if (data.success) {
             // Remove row with a fade-out animation
@@ -338,7 +338,7 @@ async function clearAuditLogs() {
     if (count === 0) return;
     if (!confirm(`Clear all ${count} audit log entries? This cannot be undone.`)) return;
     try {
-        const res = await fetch('/api/audit', { method: 'DELETE' });
+        const res = await fetch( '/api/audit', { method: 'DELETE' });
         const data = await res.json();
         if (data.success) {
             await fetchAuditLogs(); // reload — will show 1 new CLEAR_AUDIT_LOGS entry
@@ -406,7 +406,7 @@ async function startEnrollmentWorkflow() {
         setEnrollMsg(`Capturing sample ${i} of ${TOTAL_SAMPLES} — look directly at the camera…`, '');
 
         try {
-            const res = await fetch('/api/enroll/live', { method: 'POST' });
+            const res = await fetch( '/api/enroll/live', { method: 'POST' });
             const data = await res.json();
 
             if (data.image) {
@@ -434,7 +434,7 @@ async function startEnrollmentWorkflow() {
         } catch (e) {
             setEnrollMsg(`⚠ ${e.message}`, 'err');
             btn.disabled = false;
-            await fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
+            await fetch( '/api/camera/stop', { method: 'POST' }).catch(() => { });
             statusText.style.display = 'none';
             progressBar.style.width = '0%';
             return;
@@ -444,7 +444,7 @@ async function startEnrollmentWorkflow() {
     }
 
     statusText.textContent = 'Stopping camera…';
-    await fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
+    await fetch( '/api/camera/stop', { method: 'POST' }).catch(() => { });
 
     statusText.textContent = 'Processing…';
     setEnrollMsg('All samples collected. Processing biometric data…', '');
@@ -457,7 +457,7 @@ async function commitEnrollment(name, id, dob, gender, expiry_date, issue_place)
     const categories = [...document.querySelectorAll('#categoryGroup input[name="driverCategory"]:checked')]
         .map(cb => cb.value);
     try {
-        const res = await fetch('/api/enroll/save', {
+        const res = await fetch( '/api/enroll/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -471,7 +471,7 @@ async function commitEnrollment(name, id, dob, gender, expiry_date, issue_place)
             // Advance the seen-alert watermark so any unauthorized scans that happened
             // DURING enrollment (face not yet enrolled) don't pop up as error toasts.
             try {
-                const alertRes = await fetch('/api/alerts?limit=1');
+                const alertRes = await fetch( '/api/alerts?limit=1');
                 const alertList = await alertRes.json();
                 if (alertList && alertList.length) {
                     const latestId = Math.max(...alertList.map(a => a.log_id || 0));
@@ -519,7 +519,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ------------------------------------------------------------------
 async function fetchDrivers() {
     try {
-        const res = await fetch('/api/drivers');
+        const res = await fetch( '/api/drivers');
         const list = await res.json();
         const tbody = document.getElementById('driversTbody');
         document.getElementById('driverCount').textContent =
@@ -623,7 +623,7 @@ async function saveDriverEdit() {
     if (!categories.length) { notify('Select at least one category.'); return; }
 
     try {
-        const res = await fetch('/api/drivers/' + id, {
+        const res = await fetch( '/api/drivers/' + id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -645,7 +645,7 @@ async function saveDriverEdit() {
 async function deleteDriver(driverId, driverName) {
     if (!confirm(`Remove "${driverName}" from the system? This will prevent them from being verified.`)) return;
     try {
-        const res = await fetch('/api/drivers/' + driverId, { method: 'DELETE' });
+        const res = await fetch( '/api/drivers/' + driverId, { method: 'DELETE' });
         const data = await res.json();
         if (data.success) {
             fetchDrivers();
@@ -668,7 +668,7 @@ let _systemConfig = {
 
 async function fetchAlerts() {
     try {
-        const res = await fetch('/api/alerts?limit=10');
+        const res = await fetch( '/api/alerts?limit=10');
         const list = await res.json();
         if (!list || !list.length) return;
 
@@ -923,7 +923,7 @@ fetchDashboard();
 setInterval(fetchDashboard, 3000);
 
 // Explicitly stop camera when dashboard loads in case of stray sessions
-fetch('/api/camera/stop', { method: 'POST' }).catch(() => { });
+fetch( '/api/camera/stop', { method: 'POST' }).catch(() => { });
 
 fetchAlerts();
 setInterval(fetchAlerts, 3000);
@@ -941,7 +941,7 @@ async function fetchUnauthorizedLogs() {
     const tbody = document.getElementById('incidentsTbody');
 
     try {
-        const res = await fetch('/api/alerts?limit=100');
+        const res = await fetch( '/api/alerts?limit=100');
         if (!res.ok) throw new Error('Failed to fetch alerts');
 
         _incidentData = await res.json();
@@ -964,7 +964,7 @@ async function clearAllLogs() {
     }
 
     try {
-        const res = await fetch('/api/alerts', { method: 'DELETE' });
+        const res = await fetch( '/api/alerts', { method: 'DELETE' });
         const data = await res.json();
         if (data.success) {
             notify(`Deleted ${data.deleted} security logs successfully.`, 'success');

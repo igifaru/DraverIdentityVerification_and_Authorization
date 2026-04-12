@@ -152,3 +152,45 @@ button:hover {
     color: rgba(255, 255, 255, 0.2);
     letter-spacing: 2px;
 }
+
+@media (max-width: 640px) {
+    body {
+        padding: 20px;
+        min-height: 100vh;
+        height: auto;
+        overflow: auto;
+    }
+
+    .bg-glow {
+        width: 60vw;
+        height: 60vw;
+    }
+
+    .login-card {
+        padding: 32px 22px;
+        border-radius: 18px;
+    }
+
+    .logo {
+        font-size: 1.8rem;
+        letter-spacing: 3px;
+    }
+
+    .subtitle {
+        margin-bottom: 28px;
+        letter-spacing: 1px;
+    }
+
+    button {
+        padding: 14px;
+        font-size: 0.92rem;
+        letter-spacing: 1px;
+    }
+
+    .sys-id {
+        position: static;
+        margin-top: 16px;
+        text-align: center;
+        font-size: 0.62rem;
+    }
+}

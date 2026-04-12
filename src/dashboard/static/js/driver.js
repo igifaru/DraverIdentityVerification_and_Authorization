@@ -13,7 +13,7 @@
  *
  *   STATE 3: COOLDOWN
  *       Camera OFF. GPS re-anchors to capture location.
- *       distance >= 10m from capture point ──► RESET → STATE 1
+ *       distance >= 5m from capture point ──► RESET → STATE 1
  *
  * APIs:
  *   GET  /api/driver/detect        → {face_present, confidence}
@@ -23,6 +23,7 @@
 
 (function () {
     'use strict';
+    const DRIVER_API_BASE = window.location.origin;
 
     /* ── Timing & GPS constants ───────────────────────────────────── */
     const DETECT_POLL_MS        = 800;   // idle poll interval (ms)
@@ -62,7 +63,7 @@
     let latestCoords = null;         // Cached latest high-accuracy coordinates
     let gpsWatchId = null;
     let movementConfirmCount = 0;    // Consecutive readings above threshold (noise guard - STATE 1)
-    let cooldownConfirmCount = 0;     // Consecutive readings above 10m threshold (noise guard - STATE 3)
+    let cooldownConfirmCount = 0;     // Consecutive readings above 5m threshold (noise guard - STATE 3)
 
     /* ── Helpers ──────────────────────────────────────────────────── */
     function setState(s) {
@@ -75,7 +76,7 @@
             processing:       'VERIFYING',
             authorized:       'AUTHORIZED',
             unauthorized:     'ACCESS DENIED',
-            cooldown:         'COOLDOWN — MOVE 10m TO RESET',
+            cooldown:         'COOLDOWN — MOVE 5m TO RESET',
         };
         stateWord.textContent = labels[s] || s.toUpperCase();
     }
@@ -163,7 +164,7 @@ if (distance >= (GPS_START_THRESHOLD_M - 1)) {
 
             // ─────────────────────────────────────────────────────────────
             // STATE 3: COOLDOWN
-            //   Anchor = capture location. Reset to STATE 1 when >= 10m moved.
+            //   Anchor = capture location. Reset to STATE 1 when >= 5m moved.
             // ─────────────────────────────────────────────────────────────
             else if (state === 'cooldown' && capturePosition) {
                 const distFromCapture = haversine(capturePosition.lat, capturePosition.lon, latitude, longitude);
@@ -200,7 +201,7 @@ if (distFromCapture >= (GPS_COOLDOWN_RESET_M - 1)) {
 
     /* ── Telemetry: POST location update to backend ─────────────── */
     function postLocation(eventState, lat, lon, distance_m) {
-        fetch('/api/location/update', {
+        fetch(DRIVER_API_BASE + '/api/location/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ state: eventState, lat, lon, distance_m: Math.round(distance_m * 10) / 10 })
@@ -274,7 +275,7 @@ if (distFromCapture >= (GPS_COOLDOWN_RESET_M - 1)) {
             initGPS();
         }
 
-        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
+        fetch(DRIVER_API_BASE + '/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
     }
 
     /* ── IDLE: poll for a face ──────────────────────────────────── */
@@ -299,7 +300,7 @@ if (distFromCapture >= (GPS_COOLDOWN_RESET_M - 1)) {
             }
 
             try {
-                const res = await fetch('/api/driver/detect');
+                const res = await fetch(DRIVER_API_BASE + '/api/driver/detect');
                 const data = await res.json();
 
                 // If the backend says camera is OFF, wake it up!
@@ -307,7 +308,7 @@ if (distFromCapture >= (GPS_COOLDOWN_RESET_M - 1)) {
                     if (!isStartingCamera) {
                         isStartingCamera = true;
                         try {
-                            const startRes = await fetch('/api/driver/camera/start', { method: 'POST' });
+                            const startRes = await fetch(DRIVER_API_BASE + '/api/driver/camera/start', { method: 'POST' });
                             const startData = await startRes.json();
                         } finally {
                             isStartingCamera = false;
@@ -339,7 +340,7 @@ if (distFromCapture >= (GPS_COOLDOWN_RESET_M - 1)) {
         let lostCount = 0;
         checkStableTimer = setInterval(async () => {
             try {
-                const res = await fetch('/api/driver/detect');
+                const res = await fetch(DRIVER_API_BASE + '/api/driver/detect');
                 const data = await res.json();
                 if (!data.face_present) {
                     lostCount++;
@@ -368,7 +369,7 @@ if (distFromCapture >= (GPS_COOLDOWN_RESET_M - 1)) {
         setState('processing');
 
         try {
-            const res = await fetch('/api/driver/verify', { method: 'POST' });
+            const res = await fetch(DRIVER_API_BASE + '/api/driver/verify', { method: 'POST' });
             const data = await res.json();
 
             if (data.state === 'authorized') {
@@ -377,12 +378,12 @@ if (distFromCapture >= (GPS_COOLDOWN_RESET_M - 1)) {
                 showUnauthorized(data);
             } else {
                 // no_face or unexpected state — one attempt was made; shut camera off
-                fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
+                fetch(DRIVER_API_BASE + '/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
                 startMovementWait();
             }
         } catch (e) {
             // Network failure — shut camera off rather than leaving it running
-            fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
+            fetch(DRIVER_API_BASE + '/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
             startMovementWait();
         }
     }
@@ -412,7 +413,7 @@ if (distFromCapture >= (GPS_COOLDOWN_RESET_M - 1)) {
         clearReset();
 
         // Stop the camera backend stream
-        fetch('/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
+        fetch(DRIVER_API_BASE + '/api/driver/camera/stop', { method: 'POST' }).catch(() => { });
 
         // Blank the video feed element so no stale frame shows through
         // (CSS sets display:none but clearing src ensures no cached frame leaks)
@@ -423,7 +424,7 @@ if (distFromCapture >= (GPS_COOLDOWN_RESET_M - 1)) {
         }
 
         cooldownConfirmCount = 0;  // Fresh cooldown cycle
-        console.log('[driver] STATE3: COOLDOWN. Screen OFF. Camera OFF. Move 10m to reset.');
+        console.log('[driver] STATE3: COOLDOWN. Screen OFF. Camera OFF. Move 5m to reset.');
         gpsLabel.textContent = `COOLDOWN: 0m / ${GPS_COOLDOWN_RESET_M}m`;
     }
 

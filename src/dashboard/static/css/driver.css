@@ -55,29 +55,6 @@ body[data-state="unauthorized"] #videoFeed {
     filter: blur(8px) brightness(0.4);
 }
 
-/* Show live feed during waiting_movement so driver can position themselves */
-body[data-state="waiting_movement"] #videoFeed {
-    filter: brightness(0.6);
-    display: block;
-}
-
-/* Show live feed during waiting_movement so driver can position themselves */
-body[data-state="waiting_movement"] #videoFeed {
-    filter: brightness(0.6);
-    display: block;
-}
-
-/* Show live feed during waiting_movement so driver can position themselves */
-body[data-state="waiting_movement"] #videoFeed {
-    filter: brightness(0.6);
-    display: block;
-}
-
-/* Show live feed during waiting_movement so driver can position themselves */
-body[data-state="waiting_movement"] #videoFeed {
-    filter: brightness(0.6);
-    display: block;
-}
 
 /* Show live feed during waiting_movement so driver can position themselves */
 body[data-state="waiting_movement"] #videoFeed {
@@ -951,30 +928,48 @@ body[data-state="cooldown"] .state-word {
 
 @media (max-width: 640px) {
     .hud-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
+        flex-direction: row;
+        align-items: center;
+        padding: 8px 12px;
+        gap: 8px;
     }
 
-    .hud-right {
-        width: 100%;
-        justify-content: space-between;
-        flex-wrap: wrap;
+    .hud-brand {
+        flex: 1;
+        min-width: 0;
     }
 
-    .gps-status {
-        max-width: 100%;
-        width: 100%;
-        justify-content: center;
+    .logo-icon {
+        font-size: 1rem;
     }
 
     .hud-title {
-        letter-spacing: 2px;
+        font-size: 0.42rem;
+        letter-spacing: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .hud-right {
+        flex-shrink: 0;
+        gap: 8px;
+        flex-wrap: nowrap;
+    }
+
+    .gps-status {
+        max-width: 38vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.52rem;
+        padding: 4px 8px;
     }
 
     .state-word {
         min-width: 0;
-        text-align: left;
+        text-align: right;
+        font-size: 0.42rem;
     }
 
     .guide-hint,

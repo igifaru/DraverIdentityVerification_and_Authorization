@@ -787,6 +787,12 @@ nav.sidebar-nav {
     cursor: not-allowed;
 }
 
+.btn-sm {
+    padding: 5px 11px;
+    font-size: 0.76rem;
+    gap: 5px;
+}
+
 /* ================================================================
    ENROLLMENT
    ================================================================ */
@@ -1821,7 +1827,11 @@ nav.sidebar-nav {
     .panel .data-table {
         display: block;
         overflow-x: auto;
-        min-width: 760px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .panel .data-table th,
+    .panel .data-table td {
         white-space: nowrap;
     }
 
@@ -1852,9 +1862,9 @@ nav.sidebar-nav {
 
     .notifications-dropdown {
         width: min(92vw, 420px);
-        right: auto;
-        left: 50%;
-        transform: translateX(-50%);
+        right: 0;
+        left: auto;
+        transform: none;
     }
 
     .scroll-area {
@@ -1922,24 +1932,35 @@ nav.sidebar-nav {
 }
 
 @media (max-width: 520px) {
+    html {
+        font-size: 12px;
+    }
+
     .brand {
         letter-spacing: 4px;
         font-size: 1rem;
     }
 
+    /* Keep top-bar-right as a single compact row — hide the sys-chip
+       (not critical info on a small phone) to save space */
     .top-bar-right {
-        align-items: stretch;
-    }
-
-    .btn-signout {
-        width: 100%;
-        text-align: center;
-        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: nowrap;
     }
 
     .sys-chip {
-        width: 100%;
-        justify-content: center;
+        display: none;
+    }
+
+    .btn-signout {
+        font-size: 0.75rem;
+        padding: 6px 10px;
+        white-space: nowrap;
+    }
+
+    .page-title {
+        font-size: 0.82rem;
     }
 
     .capture-frame {
